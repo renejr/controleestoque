@@ -1,8 +1,24 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from fastapi import Security, HTTPException, status
+from fastapi.security.api_key import APIKeyHeader
 import bcrypt
 import jwt
 from app.core.config import settings
+
+api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
+
+def verify_api_key(api_key: str = Security(api_key_header)) -> str:
+    """
+    Verifica se a API Key fornecida no header X-API-KEY é válida.
+    Usado para proteger rotas de Webhook (ex: provisionamento pelo WordPress).
+    """
+    if not api_key or api_key != settings.WEBHOOK_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado: API Key inválida ou ausente"
+        )
+    return api_key
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """

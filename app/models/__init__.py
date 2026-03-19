@@ -13,9 +13,12 @@ from app.models.customer import Customer
 from app.models.sales_order import SalesOrder
 from app.models.sales_order_item import SalesOrderItem
 from app.models.suggestion import Suggestion
+from app.models.nfe_document import NfeDocument
+from app.models.message import ChatMessage
 
 __all__ = [
     "Base", "Tenant", "User", "Product", "InventoryTransaction", 
     "AIInsight", "Supplier", "PurchaseOrder", "PurchaseOrderItem", 
-    "AuditLog", "Vehicle", "Customer", "SalesOrder", "SalesOrderItem", "Suggestion"
+    "AuditLog", "Vehicle", "Customer", "SalesOrder", "SalesOrderItem", "Suggestion",
+    "NfeDocument", "ChatMessage"
 ]

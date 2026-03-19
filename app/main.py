@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import health, products, tenants, auth, transactions, dashboard, finance, suppliers, purchase_orders, audit_logs, oracle, vehicles, fleet, customers, sales_orders, users, suggestions
+from app.api.routes import health, products, tenants, auth, transactions, dashboard, finance, suppliers, purchase_orders, audit_logs, oracle, vehicles, fleet, customers, sales_orders, users, suggestions, chat, subscriptions, admin
 from app.core.config import settings
 
 app = FastAPI(
@@ -36,6 +36,9 @@ app.include_router(customers.router, prefix="/customers", tags=["Customers"])
 app.include_router(sales_orders.router, prefix="/sales-orders", tags=["Sales Orders"])
 app.include_router(users.router, tags=["Users"])
 app.include_router(suggestions.router, tags=["Suggestions"])
+app.include_router(chat.router, tags=["Chat"])
+app.include_router(subscriptions.router)
+app.include_router(admin.router)
 
 @app.get("/")
 async def root():

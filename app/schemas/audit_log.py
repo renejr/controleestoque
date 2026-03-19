@@ -15,3 +15,6 @@ class AuditLogResponse(BaseModel):
     timestamp: datetime
 
     model_config = {"from_attributes": True}
+
+class SuperAdminAuditLogResponse(AuditLogResponse):
+    tenant_name: str

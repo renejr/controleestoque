@@ -12,4 +12,10 @@ class Tenant(Base):
     cnpj = Column(String(14), unique=True, index=True, nullable=True)
     corporate_name = Column(String(255), nullable=True)
     tax_regime = Column(String(50), nullable=True) # 'Simples Nacional', 'Lucro Presumido', 'Lucro Real'
+    
+    # Fiscal Fields (NFe)
+    state_registration = Column(String(20), nullable=True) # Inscrição Estadual
+    certificate_a1_base64 = Column(String, nullable=True) # Arquivo .pfx em base64
+    certificate_password = Column(String(255), nullable=True) # Senha do certificado
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

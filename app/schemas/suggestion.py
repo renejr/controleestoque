@@ -22,3 +22,10 @@ class SuggestionResponse(SuggestionBase):
 
     class Config:
         from_attributes = True
+
+class SuggestionStatusUpdate(BaseModel):
+    status: str = Field(..., description="PENDING, IN_REVIEW, RESOLVED")
+
+class SuperAdminSuggestionResponse(SuggestionResponse):
+    tenant_name: str
+    user_name: str

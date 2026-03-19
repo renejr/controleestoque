@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "sua_chave_secreta_super_segura_aqui_para_dev"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    WEBHOOK_API_KEY: str = "sua_chave_de_api_secreta_para_webhooks" # Substitua no .env em produção
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

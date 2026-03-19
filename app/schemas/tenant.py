@@ -8,6 +8,9 @@ class TenantBase(BaseModel):
     cnpj: Optional[str] = None
     corporate_name: Optional[str] = None
     tax_regime: Optional[str] = None
+    state_registration: Optional[str] = None
+    certificate_a1_base64: Optional[str] = None
+    certificate_password: Optional[str] = None
 
 class TenantCreate(TenantBase):
     pass
@@ -17,6 +20,9 @@ class TenantUpdate(BaseModel):
     cnpj: Optional[str] = None
     corporate_name: Optional[str] = None
     tax_regime: Optional[str] = None
+    state_registration: Optional[str] = None
+    certificate_a1_base64: Optional[str] = None
+    certificate_password: Optional[str] = None
 
 class TenantResponse(TenantBase):
     id: UUID
