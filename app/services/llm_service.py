@@ -102,6 +102,62 @@ async def generate_inventory_insights(dashboard_data: dict) -> str:
         traceback.print_exc()
         return f"Erro inesperado ao consultar o oráculo de estoque: {type(e).__name__} - {str(e)}"
 
+async def generate_support_answer(question: str, context_text: str) -> str:
+    """
+    Usa um LLM local (via Ollama) para atuar como um agente de suporte,
+    respondendo à dúvida do usuário com base no manual fornecido (context_text).
+    """
+    
+    prompt = f"""
+    Você é o Agente de Suporte Especialista do nosso ERP SaaS de Gestão de Estoque.
+    Seja educado, direto e ajude o usuário. 
+    
+    --- BASE DE CONHECIMENTO (MANUAL DO SISTEMA) ---
+    {context_text}
+    
+    --- PERGUNTA DO USUÁRIO ---
+    {question}
+    
+    INSTRUÇÕES RÍGIDAS:
+    1. Responda APENAS com base na "BASE DE CONHECIMENTO" fornecida acima.
+    2. Se a resposta não estiver no contexto fornecido, diga exatamente: "Desculpe, não encontrei essa informação no manual. Por favor, contate nosso suporte humano através da aba de Ajuda."
+    3. Não invente informações (evite alucinações).
+    4. Responda EXCLUSIVAMENTE em Português do Brasil.
+    5. Formate a resposta em Markdown limpo para facilitar a leitura no chat.
+    """
+
+    try:
+        print(f"--- [LLM Service] Iniciando requisição de Suporte para o Ollama ---")
+        
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "llama3.2:1b",
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.1, # Temperatura baixa para garantir fidelidade ao manual
+                    }
+                }
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            answer = result.get("response", "").strip()
+            
+            if not answer:
+                return "Desculpe, meu cérebro processou a informação mas não conseguiu formular a resposta. Tente novamente."
+                
+            return answer
+            
+    except httpx.ConnectError:
+        return "Desculpe, nosso servidor de IA de Suporte está offline no momento."
+    except httpx.ReadTimeout:
+        return "Desculpe, a busca no manual demorou muito. Tente reformular a pergunta."
+    except Exception as e:
+        return "Ocorreu um erro interno ao contatar o suporte automatizado."
+
 async def generate_restock_advice(critical_products: list) -> dict:
     """
     Pede ao Ollama para gerar um plano de reposição estruturado em JSON
