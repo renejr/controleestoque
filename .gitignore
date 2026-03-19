@@ -1,0 +1,168 @@
+# ==========================================
+# GESTÃO DE ESTOQUE SAAS - GITIGNORE
+# ==========================================
+
+# ------------------------------------------
+# BLOQUEIO DE ARQUIVOS GRANDES (> 80MB)
+# ------------------------------------------
+# Bloqueia arquivos de banco de dados locais gigantes, 
+# binários pesados e modelos de IA soltos no projeto.
+*.sqlite
+*.sqlite3
+*.db
+*.bak
+*.iso
+*.tar
+*.zip
+*.gz
+*.rar
+*.7z
+*.mp4
+*.mkv
+*.bin
+*.pt
+*.safetensors
+*.gguf
+
+# ------------------------------------------
+# PYTHON / BACKEND / FASTAPI
+# ------------------------------------------
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# FastAPI / Configs
+.env.local
+.env.development
+.env.production
+alembic.ini.bak
+
+# ------------------------------------------
+# FLUTTER / DART / FRONTEND
+# ------------------------------------------
+# Flutter/Dart/Pub
+frontend/.dart_tool/
+frontend/.packages
+frontend/.pub-cache/
+frontend/.pub/
+frontend/build/
+frontend/coverage/
+frontend/lib/generated_plugin_registrant.dart
+
+# iOS
+frontend/ios/Flutter/.last_build_id
+frontend/ios/Flutter/App.framework
+frontend/ios/Flutter/Flutter.framework
+frontend/ios/Flutter/Flutter.podspec
+frontend/ios/Flutter/Generated.xcconfig
+frontend/ios/Flutter/app.flx
+frontend/ios/Flutter/app.zip
+frontend/ios/Flutter/flutter_assets/
+frontend/ios/Flutter/flutter_export_environment.sh
+frontend/ios/ServiceDefinitions.json
+frontend/ios/Runner/GeneratedPluginRegistrant.*
+frontend/ios/Pods/
+
+# Android
+frontend/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+frontend/android/local.properties
+frontend/android/key.properties
+frontend/android/.gradle/
+frontend/android/.idea/
+
+# Mac OS
+frontend/macos/Flutter/GeneratedPluginRegistrant.swift
+frontend/macos/Flutter/ephemeral/
+frontend/macos/Pods/
+
+# Windows
+frontend/windows/flutter/ephemeral/
+frontend/windows/flutter/generated_plugin_registrant.cc
+
+# Linux
+frontend/linux/flutter/ephemeral/
+frontend/linux/flutter/generated_plugin_registrant.cc
+
+# ------------------------------------------
+# IDEs E SISTEMA OPERACIONAL
+# ------------------------------------------
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+*.iws
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
