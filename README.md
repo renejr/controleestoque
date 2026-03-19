@@ -11,7 +11,8 @@ Este projeto é dividido em um poderoso **Backend em Python (FastAPI)** e um apl
 - 🔐 **Multi-Tenant (SaaS):** Isolamento total de dados entre diferentes empresas/clientes usando PostgreSQL e UUID.
 - 📦 **Catálogo de Produtos:** Cadastro completo com regras logísticas (SKU, Código de Barras, Peso, Dimensões e Estoque Mínimo), classificação fiscal brasileira e motor de **Importação em Lote via CSV** com validação inteligente (Dry-Run).
 - 💸 **Módulo Financeiro:** Análise de Receita, Custo e Lucro Líquido gerados automaticamente a partir das movimentações de estoque.
-- 🚚 **Gestão de Compras e Fornecedores:** Controle centralizado de parceiros, fornecedores e fluxo de Ordens de Compra com **gatilho automático de entrada em estoque**.
+- 🚚 **Gestão de Compras e Fornecedores:** Controle centralizado de parceiros, fluxo de Ordens de Compra com **gatilho automático de entrada em estoque** e geração de **Documentos PDF Profissionais**.
+- 🚛 **Gestão de Frota e Logística (TMS):** Cadastro de veículos e um poderoso motor de **Bin Packing 3D** (Cubagem), capaz de calcular matematicamente se uma lista de pedidos cabe no caminhão e retornar as coordenadas exatas (x,y,z) para empacotamento.
 - 🏛️ **Configurações Fiscais (Tenant):** Gestão de Razão Social, CNPJ e Regime Tributário por empresa.
 - 🕵️ **Caixa Preta (Auditoria):** Sistema de logs invisível que rastreia alterações críticas (INSERT, UPDATE, DELETE) em tempo real, permitindo aos administradores inspecionarem o "Antes e Depois" de cada registro através de um painel de visualização de JSON.
 - 🤖 **IA Dupla (CFO & CSO):** Dois oráculos alimentados por LLM local (Ollama / Llama 3.2). O CFO gera relatórios gerenciais financeiros, enquanto o CSO analisa estoques críticos e **monta o carrinho de compras automaticamente** para reposição (Human-in-the-Loop).

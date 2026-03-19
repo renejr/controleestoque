@@ -8,5 +8,6 @@ from .supplier import Supplier
 from .purchase_order import PurchaseOrder
 from .purchase_order_item import PurchaseOrderItem
 from .audit_log import AuditLog
+from .vehicle import Vehicle
 
-__all__ = ["Base", "Tenant", "User", "Product", "InventoryTransaction", "AIInsight", "Supplier", "PurchaseOrder", "PurchaseOrderItem", "AuditLog"]
+__all__ = ["Base", "Tenant", "User", "Product", "InventoryTransaction", "AIInsight", "Supplier", "PurchaseOrder", "PurchaseOrderItem", "AuditLog", "Vehicle"]

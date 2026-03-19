@@ -49,6 +49,7 @@ C:\gestaoestoque\
 | **Financeiro** | Análise de lucratividade baseada em transações (Receita, Custo, Margem) e gráficos de série temporal. | `routes/finance.py`, `schemas/finance.py` | `services/finance_service.dart`, `models/finance_summary.dart`, `screens/finance_screen.dart` | Depende diretamente de Transações (OUT) e Produtos (Custo/Preço). |
 | **Oráculo de IA (LLM)** | IA Local atuando como CFO (Insights Financeiros em Markdown) e CSO (Plano de Reposição de Estoque em JSON). | `routes/dashboard.py`, `routes/oracle.py`, `services/llm_service.py` | `screens/ai_consultant_screen.dart`, `screens/oracle_restock_screen.dart` | Backend: httpx, Ollama (Llama 3.2 1B). Frontend: flutter_markdown. |
 | **Auditoria e Logs** | A "Caixa Preta". Rastreia alterações críticas (INSERT, UPDATE, DELETE) capturando o JSON de "Antes e Depois" com base no Tenant. | `routes/audit_logs.py`, `services/audit_service.py`, `models/audit_log.py` | `services/audit_service.dart`, `models/audit_log.dart`, `screens/audit_logs_screen.dart` | Backend: JSONB (PostgreSQL). Frontend: Modal com JsonEncoder (Pretty Print). |
+| **TMS (Gestão de Frota e Logística)** | Cadastro de veículos com capacidades dimensionais e de peso. Motor de Bin Packing 3D para calcular cubagem de carga. | `routes/vehicles.py`, `routes/fleet.py`, `models/vehicle.py`, `services/logistics_service.py` | `services/vehicle_service.dart`, `models/vehicle.dart`, `screens/vehicles_screen.dart`, `screens/vehicle_form_screen.dart` | Backend: `py3dbp` (Bin Packing 3D). |
 
 ---
 
@@ -57,7 +58,9 @@ C:\gestaoestoque\
 *   **Infraestrutura Core:** Servidor FastAPI configurado, banco PostgreSQL rodando com Alembic para migrações. App Flutter consumindo API com tratamento de erros.
 *   **Segurança:** Multi-tenancy implementado via UUID. Autenticação JWT funcional (Login e persistência de sessão).
 *   **Gestão de Produtos (Logística Avançada):** CRUD completo com Importação em Lote via CSV (Dry-Run e Inserção otimizada). Campos logísticos (Código de Barras, Dimensões, Peso, Estoque Mínimo). Validação de integridade no banco (SKU/Barcode únicos por tenant). Paginação (Infinite Scroll) e Pull-to-Refresh funcionando. Exportação em PDF e CSV. Filtros rápidos (Estoque Crítico).
-*   **Gestão de Fornecedores e Compras:** Módulo implementado com CRUD de fornecedores e estrutura completa de Ordens de Compra (Pedidos). Integração de status da Ordem com o gatilho de transação de Estoque.
+*   **Gestão de Fornecedores e Compras:** Módulo implementado com CRUD de fornecedores e estrutura completa de Ordens de Compra (Pedidos). Integração de status da Ordem com o gatilho de transação de Estoque. **Exportação Profissional em PDF** das Ordens de Compra.
+*   **Gestão de Frota (TMS):** Módulo implementado. CRUD de veículos (Placa, Modelo, Tara, Capacidade Máxima de Peso e Volume, Dimensões do Baú). Interface de gerenciamento no Flutter com Pull-to-Refresh e menu de gaveta.
+*   **Motor de Logística (Bin Packing):** Backend integrado à biblioteca `py3dbp`. Rota de simulação de carga (`/fleet/pack-order`) ativa, capaz de calcular quais caixas cabem no caminhão, gerar as coordenadas 3D (x, y, z) de empacotamento e calcular o percentual de ocupação de peso e volume.
 *   **Módulo Fiscal (Fase 1):** Tela de configurações do Tenant (Razão Social, CNPJ, Regime) e campos fiscais brasileiros nos produtos (NCM, CFOP, CEST, Origem).
 *   **Auditoria e Logs (Caixa Preta):** Implementação de log passivo no backend via gatilhos em rotas de Produtos, Fornecedores, Compras e Tenant, salvando JSONB "Antes e Depois". Frontend com Painel do Inspetor e Modal de Diferenças.
 *   **Inteligência Artificial (CFO e CSO):** Integração via Ollama consolidada. O LLM atua como CFO gerando análises formatadas em Markdown e como CSO sugerindo planos de reposição de estoque (JSON) que alimentam o carrinho de compras automaticamente (Human-in-the-Loop).
@@ -68,10 +71,11 @@ C:\gestaoestoque\
 
 ## Próximos Passos (Backlog Técnico)
 
-1.  **Módulo Fiscal (Integração SEFAZ - Fase 2):**
+1.  **Integração Visual do Bin Packing:**
+    *   Criar tela no Flutter para disparar a simulação de carga (`/fleet/pack-order`) a partir de uma Ordem de Compra ou Venda.
+    *   (Opcional) Renderizar as caixas em 3D usando as coordenadas do relatório.
+2.  **Módulo Fiscal (Integração SEFAZ - Fase 2):**
     *   Preparar arquitetura para emissão de NFe baseada nas transações de `OUT` e dados fiscais do Tenant/Produto.
-2.  **Módulo de Compras (Gestão de Ordens - Fase 2):**
-    *   Gerar exportação em PDF da Ordem de Compra para envio ao Fornecedor.
 3.  **Testes Automatizados:**
-    *   Implementar Pytest para rotas críticas (Transações, Importação CSV e Finanças).
+    *   Expandir Pytest para cobrir o motor de logística e geração de PDF.
     *   Implementar testes de Widget no Flutter para fluxos de checkout/saída.
