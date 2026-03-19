@@ -8,7 +8,10 @@ from uuid import UUID
 from app.core.deps import get_db, get_tenant_id
 from app.models.purchase_order import PurchaseOrder
 from app.models.purchase_order_item import PurchaseOrderItem
+from app.models.product import Product
+from app.models.transaction import InventoryTransaction
 from app.schemas.purchase_order import PurchaseOrderCreate, PurchaseOrderResponse, PurchaseOrderUpdate
+from app.services.audit_service import log_audit_event
 
 router = APIRouter()
 
@@ -108,13 +111,68 @@ async def update_purchase_order(
     if not order:
         raise HTTPException(status_code=404, detail="Ordem de compra não encontrada")
         
+    previous_status = order.status
+    
+    # Captura o estado antigo para auditoria
+    old_data = {c.name: getattr(order, c.name) for c in order.__table__.columns}
+    
     update_data = order_in.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(order, key, value)
+    
+    try:
+        for key, value in update_data.items():
+            setattr(order, key, value)
+            
+        # Captura o estado novo
+        new_data = {c.name: getattr(order, c.name) for c in order.__table__.columns}
         
-    await db.commit()
-    await db.refresh(order)
-    return order
+        # Registra a auditoria
+        await log_audit_event(
+            db=db,
+            tenant_id=tenant_id,
+            user_id=None, # TODO: injetar usuário logado no futuro
+            action="UPDATE",
+            table_name="purchase_orders",
+            record_id=str(order.id),
+            old_data=old_data,
+            new_data=new_data
+        )
+             
+        # Gatilho: Se o status mudou para COMPLETED, processa a entrada no estoque
+        if previous_status != "COMPLETED" and order.status == "COMPLETED":
+            for item in order.items:
+                # 1. Busca o produto
+                prod_query = select(Product).where(Product.id == item.product_id, Product.tenant_id == tenant_id)
+                prod_result = await db.execute(prod_query)
+                product = prod_result.scalar_one_or_none()
+                
+                if not product:
+                    raise ValueError(f"Produto {item.product_id} não encontrado para entrada no estoque.")
+
+                # 2. Cria a transação de IN (Entrada)
+                transaction = InventoryTransaction(
+                    tenant_id=tenant_id,
+                    product_id=product.id,
+                    type="IN",
+                    quantity=int(item.quantity), # Estoque geralmente é int na nossa regra atual
+                    unit_cost=item.unit_price,
+                    unit_price=product.price, # Mantém o preço de venda atual do produto
+                    notes=f"Ref. Ordem de Compra #{str(order.id)[:8]}"
+                )
+                db.add(transaction)
+                
+                # 3. Atualiza o estoque atual do produto
+                product.current_stock += int(item.quantity)
+
+        await db.commit()
+        await db.refresh(order)
+        return order
+        
+    except ValueError as ve:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Erro interno ao processar ordem de compra e estoque.")
 
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_purchase_order(

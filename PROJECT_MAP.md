@@ -48,6 +48,7 @@ C:\gestaoestoque\
 | **Dashboards Analíticos** | Agregação de dados para KPIs de visão geral (Total de itens, alertas de ruptura, histórico recente). | `routes/dashboard.py`, `schemas/dashboard.py` | `screens/dashboard_screen.dart`, `models/dashboard_summary.dart` | Backend: Agrega dados de Produtos e Transações. Frontend: fl_chart. |
 | **Financeiro** | Análise de lucratividade baseada em transações (Receita, Custo, Margem) e gráficos de série temporal. | `routes/finance.py`, `schemas/finance.py` | `services/finance_service.dart`, `models/finance_summary.dart`, `screens/finance_screen.dart` | Depende diretamente de Transações (OUT) e Produtos (Custo/Preço). |
 | **Oráculo de IA (LLM)** | Geração de relatórios gerenciais e insights acionáveis baseados no estado do estoque e finanças usando LLM local. | `routes/dashboard.py` (ai-insights), `services/llm_service.py`, `models/ai_insight.py` | `screens/ai_consultant_screen.dart` | Backend: httpx, Ollama (Llama 3.2 1B). Frontend: flutter_markdown. |
+| **Auditoria e Logs** | A "Caixa Preta". Rastreia alterações críticas (INSERT, UPDATE, DELETE) capturando o JSON de "Antes e Depois" com base no Tenant. | `routes/audit_logs.py`, `services/audit_service.py`, `models/audit_log.py` | `services/audit_service.dart`, `models/audit_log.dart`, `screens/audit_logs_screen.dart` | Backend: JSONB (PostgreSQL). Frontend: Modal com JsonEncoder (Pretty Print). |
 
 ---
 
@@ -58,6 +59,7 @@ C:\gestaoestoque\
 *   **Gestão de Produtos (Logística Avançada):** CRUD completo. Campos logísticos (Código de Barras, Dimensões, Peso, Estoque Mínimo). Validação de integridade no banco (SKU/Barcode únicos por tenant). Paginação (Infinite Scroll) funcionando. Exportação em PDF e CSV.
 *   **Gestão de Fornecedores e Compras:** Módulo implementado com CRUD de fornecedores (Validação de e-mail e layout responsivo) e estrutura base de Ordens de Compra (Pedidos).
 *   **Módulo Fiscal (Fase 1):** Tela de configurações do Tenant (Razão Social, CNPJ, Regime) e campos fiscais brasileiros nos produtos (NCM, CFOP, CEST, Origem).
+*   **Auditoria e Logs (Caixa Preta):** Implementação de log passivo no backend via gatilhos em rotas de Produtos, Fornecedores, Compras e Tenant, salvando JSONB "Antes e Depois". Frontend com Painel do Inspetor e Modal de Diferenças.
 *   **Inteligência Artificial:** Integração via Ollama consolidada. O LLM atua como CFO, recebendo métricas gerais e lista de produtos com estoque baixo, gerando análises formatadas em Markdown. O histórico de análises é persistido no banco de dados com fallback de falhas de comunicação.
 *   **Busca Avançada:** Busca vetorial (`pgvector`) funcional, com filtro de similaridade (`cosine_distance < 0.5`) para evitar falsos positivos.
 *   **Módulo Financeiro:** Rotas de resumo financeiro ativas. Gráficos de barras de Entradas vs Saídas e Receita vs Custo implementados no frontend usando `fl_chart`. Registro de transações carimba valores históricos.
@@ -71,11 +73,9 @@ C:\gestaoestoque\
 2.  **Módulo de Compras (Gestão de Ordens - Fase 2):**
     *   Desenvolver o formulário complexo no Flutter para adicionar múltiplos itens em uma Ordem de Compra.
     *   Automatizar gatilhos: Ao aprovar/concluir Ordem de Compra, gerar transação de `IN` e atualizar estoque.
-3.  **Auditoria e Logs de Sistema:**
-    *   Implementar middleware de tracking no FastAPI para registrar quem alterou o que (ex: alteração de preço de custo).
-4.  **Aprimoramento de UI/UX Mobile:**
+3.  **Aprimoramento de UI/UX Mobile:**
     *   Implementar *Pull to Refresh* consistente em todas as listas.
     *   Adicionar filtros avançados na tela de produtos (por categoria, margem de lucro, status de estoque).
-5.  **Testes Automatizados:**
+4.  **Testes Automatizados:**
     *   Implementar Pytest para rotas críticas (Transações e Finanças).
     *   Implementar testes de Widget no Flutter para fluxos de checkout/saída.

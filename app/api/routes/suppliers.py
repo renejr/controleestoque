@@ -7,6 +7,7 @@ from uuid import UUID
 from app.core.deps import get_db, get_tenant_id
 from app.models.supplier import Supplier
 from app.schemas.supplier import SupplierCreate, SupplierResponse, SupplierUpdate
+from app.services.audit_service import log_audit_event
 
 router = APIRouter()
 
@@ -77,11 +78,29 @@ async def update_supplier(
     
     if not supplier:
         raise HTTPException(status_code=404, detail="Fornecedor não encontrado")
-        
+    
+    # Captura o estado antigo para auditoria
+    old_data = {c.name: getattr(supplier, c.name) for c in supplier.__table__.columns}
+
     update_data = supplier_in.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(supplier, key, value)
-        
+
+    # Captura o estado novo
+    new_data = {c.name: getattr(supplier, c.name) for c in supplier.__table__.columns}
+    
+    # Registra a auditoria
+    await log_audit_event(
+        db=db,
+        tenant_id=tenant_id,
+        user_id=None,
+        action="UPDATE",
+        table_name="suppliers",
+        record_id=str(supplier.id),
+        old_data=old_data,
+        new_data=new_data
+    )
+
     await db.commit()
     await db.refresh(supplier)
     return supplier
@@ -101,6 +120,22 @@ async def delete_supplier(
     
     if not supplier:
         raise HTTPException(status_code=404, detail="Fornecedor não encontrado")
-        
+    
+    # Captura o estado antigo para auditoria
+    old_data = {c.name: getattr(supplier, c.name) for c in supplier.__table__.columns}
+    
     await db.delete(supplier)
+    
+    # Registra a auditoria ANTES do commit
+    await log_audit_event(
+        db=db,
+        tenant_id=tenant_id,
+        user_id=None,
+        action="DELETE",
+        table_name="suppliers",
+        record_id=str(supplier_id),
+        old_data=old_data,
+        new_data=None
+    )
+    
     await db.commit()

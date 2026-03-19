@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.deps import get_db, get_tenant_id
 from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
+from app.services.audit_service import log_audit_event
 from app.services.embedding import embedding_service
 
 router = APIRouter()
@@ -138,6 +139,10 @@ async def update_product(
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Produto não encontrado.")
     
+    # Captura o estado antigo para auditoria (convertendo o objeto para dict)
+    # Excluímos o _sa_instance_state que é interno do SQLAlchemy e o embedding que é gigante
+    old_data = {c.name: getattr(product, c.name) for c in product.__table__.columns if c.name != 'embedding'}
+
     update_data = product_in.model_dump(exclude_unset=True)
     
     # Se houver alteração de nome ou descrição, recalcula o embedding
@@ -158,6 +163,22 @@ async def update_product(
         setattr(product, key, value)
 
     try:
+        # Captura o estado novo
+        new_data = {c.name: getattr(product, c.name) for c in product.__table__.columns if c.name != 'embedding'}
+        
+        # Registra a auditoria ANTES do commit
+        # TODO: Quando a rota receber o current_user, passar o user_id real em vez de None
+        await log_audit_event(
+            db=db,
+            tenant_id=tenant_id,
+            user_id=None, 
+            action="UPDATE",
+            table_name="products",
+            record_id=str(product.id),
+            old_data=old_data,
+            new_data=new_data
+        )
+
         await db.commit()
         await db.refresh(product)
         return product

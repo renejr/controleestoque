@@ -13,6 +13,7 @@ Este projeto é dividido em um poderoso **Backend em Python (FastAPI)** e um apl
 - 💸 **Módulo Financeiro:** Análise de Receita, Custo e Lucro Líquido gerados automaticamente a partir das movimentações de estoque.
 - 🚚 **Gestão de Compras e Fornecedores:** Controle centralizado de parceiros, fornecedores e fluxo de Ordens de Compra.
 - 🏛️ **Configurações Fiscais (Tenant):** Gestão de Razão Social, CNPJ e Regime Tributário por empresa.
+- 🕵️ **Caixa Preta (Auditoria):** Sistema de logs invisível que rastreia alterações críticas (INSERT, UPDATE, DELETE) em tempo real, permitindo aos administradores inspecionarem o "Antes e Depois" de cada registro através de um painel de visualização de JSON.
 - 🤖 **Oráculo de IA Local:** Assistente Financeiro alimentado por LLM local (Ollama / Llama 3.2), capaz de ler seus dados de estoque e gerar conselhos de negócios precisos.
 - 🔍 **Busca Semântica:** Motor de busca vetorial avançado utilizando `pgvector` para encontrar produtos até por sinônimos ou descrições abstratas.
 

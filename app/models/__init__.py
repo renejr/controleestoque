@@ -7,5 +7,6 @@ from .ai_insight import AIInsight
 from .supplier import Supplier
 from .purchase_order import PurchaseOrder
 from .purchase_order_item import PurchaseOrderItem
+from .audit_log import AuditLog
 
-__all__ = ["Base", "Tenant", "User", "Product", "InventoryTransaction", "AIInsight", "Supplier", "PurchaseOrder", "PurchaseOrderItem"]
+__all__ = ["Base", "Tenant", "User", "Product", "InventoryTransaction", "AIInsight", "Supplier", "PurchaseOrder", "PurchaseOrderItem", "AuditLog"]

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import health, products, tenants, auth, transactions, dashboard, finance, suppliers, purchase_orders
+from app.api.routes import health, products, tenants, auth, transactions, dashboard, finance, suppliers, purchase_orders, audit_logs
 from app.core.config import settings
 
 app = FastAPI(
@@ -28,6 +28,7 @@ app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 app.include_router(finance.router, prefix="/finance", tags=["Finance"])
 app.include_router(suppliers.router, prefix="/suppliers", tags=["Suppliers"])
 app.include_router(purchase_orders.router, prefix="/purchase-orders", tags=["Purchase Orders"])
+app.include_router(audit_logs.router, prefix="/audit-logs", tags=["Audit Logs"])
 
 @app.get("/")
 async def root():

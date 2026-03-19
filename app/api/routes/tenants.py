@@ -7,6 +7,7 @@ from sqlalchemy import select
 from app.core.deps import get_db, get_tenant_id
 from app.models.tenant import Tenant
 from app.schemas.tenant import TenantCreate, TenantResponse, TenantUpdate
+from app.services.audit_service import log_audit_event
 
 router = APIRouter()
 
@@ -41,9 +42,27 @@ async def update_my_tenant(
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant não encontrado.")
     
+    # Captura o estado antigo para auditoria
+    old_data = {c.name: getattr(tenant, c.name) for c in tenant.__table__.columns}
+    
     update_data = tenant_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(tenant, field, value)
+        
+    # Captura o estado novo
+    new_data = {c.name: getattr(tenant, c.name) for c in tenant.__table__.columns}
+    
+    # Registra a auditoria
+    await log_audit_event(
+        db=db,
+        tenant_id=tenant_id,
+        user_id=None, # TODO: injetar usuário logado no futuro
+        action="UPDATE",
+        table_name="tenants",
+        record_id=str(tenant.id),
+        old_data=old_data,
+        new_data=new_data
+    )
         
     await db.commit()
     await db.refresh(tenant)
