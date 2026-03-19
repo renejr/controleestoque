@@ -4,11 +4,50 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.core.deps import get_db
+from app.core.deps import get_db, get_tenant_id
 from app.models.tenant import Tenant
 from app.schemas.tenant import TenantCreate, TenantResponse, TenantUpdate
 
 router = APIRouter()
+
+@router.get("/me", response_model=TenantResponse)
+async def get_my_tenant(
+    tenant_id: UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Obtém os detalhes do Tenant do usuário logado.
+    """
+    query = select(Tenant).where(Tenant.id == tenant_id)
+    result = await db.execute(query)
+    tenant = result.scalars().first()
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant não encontrado.")
+    return tenant
+
+@router.put("/me", response_model=TenantResponse)
+async def update_my_tenant(
+    tenant_in: TenantUpdate,
+    tenant_id: UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Atualiza os dados do Tenant do usuário logado.
+    """
+    query = select(Tenant).where(Tenant.id == tenant_id)
+    result = await db.execute(query)
+    tenant = result.scalars().first()
+    
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant não encontrado.")
+    
+    update_data = tenant_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(tenant, field, value)
+        
+    await db.commit()
+    await db.refresh(tenant)
+    return tenant
 
 @router.post("/", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
 async def create_tenant(

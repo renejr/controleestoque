@@ -17,14 +17,18 @@ class ProductBase(BaseModel):
     width: Optional[float] = Field(None, ge=0)
     height: Optional[float] = Field(None, ge=0)
     length: Optional[float] = Field(None, ge=0)
+    ncm: Optional[str] = Field(None, max_length=8)
+    cfop: Optional[str] = Field(None, max_length=4)
+    cest: Optional[str] = Field(None, max_length=7)
+    origin: Optional[int] = Field(0, ge=0)
     embedding: Optional[List[float]] = Field(None, max_length=384, min_length=384)
 
 class ProductCreate(ProductBase):
     pass
 
 class ProductUpdate(BaseModel):
-    sku: Optional[str] = Field(None, max_length=100)
-    name: Optional[str] = Field(None, max_length=255)
+    name: Optional[str] = None
+    sku: Optional[str] = None
     barcode: Optional[str] = None
     description: Optional[str] = None
     price: Optional[Decimal] = Field(None, ge=0)
@@ -35,6 +39,10 @@ class ProductUpdate(BaseModel):
     width: Optional[float] = Field(None, ge=0)
     height: Optional[float] = Field(None, ge=0)
     length: Optional[float] = Field(None, ge=0)
+    ncm: Optional[str] = Field(None, max_length=8)
+    cfop: Optional[str] = Field(None, max_length=4)
+    cest: Optional[str] = Field(None, max_length=7)
+    origin: Optional[int] = Field(None, ge=0)
     embedding: Optional[List[float]] = Field(None, max_length=384, min_length=384)
 
 class ProductResponse(ProductBase):

@@ -1,5 +1,6 @@
 from sqlalchemy import Column, String, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 import uuid
 
 from app.models.base import Base
@@ -15,3 +16,6 @@ class Supplier(Base):
     phone = Column(String(20), nullable=True)
     address = Column(Text, nullable=True)
     website = Column(String(100), nullable=True)
+
+    # Relacionamentos
+    purchase_orders = relationship("PurchaseOrder", back_populates="supplier")

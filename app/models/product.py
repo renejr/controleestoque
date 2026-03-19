@@ -26,5 +26,9 @@ class Product(Base):
     width = Column(Float, nullable=True) # Largura em cm
     height = Column(Float, nullable=True) # Altura em cm
     length = Column(Float, nullable=True) # Comprimento em cm
+    ncm = Column(String(8), nullable=True)
+    cfop = Column(String(4), nullable=True)
+    cest = Column(String(7), nullable=True)
+    origin = Column(Integer, nullable=True, default=0)
     embedding = Column(Vector(384), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
