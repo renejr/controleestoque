@@ -101,3 +101,85 @@ async def generate_inventory_insights(dashboard_data: dict) -> str:
         import traceback
         traceback.print_exc()
         return f"Erro inesperado ao consultar o oráculo de estoque: {type(e).__name__} - {str(e)}"
+
+async def generate_restock_advice(critical_products: list) -> dict:
+    """
+    Pede ao Ollama para gerar um plano de reposição estruturado em JSON
+    baseado nos produtos com estoque crítico.
+    """
+    
+    if not critical_products:
+        return {"advice": "Nenhum produto em estado crítico.", "suggested_purchases": []}
+
+    context_text = ""
+    for p in critical_products:
+        supplier_info = f"Fornecedor: {p['supplier_name']} ({p['supplier_id']})" if p['supplier_id'] else "Sem Fornecedor"
+        context_text += (
+            f"- Produto: {p['name']} (ID: {p['id']}) | "
+            f"Estoque Atual: {p['current_stock']} | Mínimo Exigido: {p['min_stock']} | "
+            f"Custo Unitário: R$ {p['cost_price']:.2f} | {supplier_info}\n"
+        )
+
+    system_prompt = """
+    Você é um Diretor de Suprimentos (CSO) de um ERP. 
+    Analise a lista de produtos com estoque crítico abaixo.
+    
+    INSTRUÇÕES RÍGIDAS:
+    1. Calcule a 'suggested_quantity' para que o novo estoque fique pelo menos 20% acima do mínimo exigido. (Ex: se mínimo é 10 e atual é 2, sugiro comprar 10 para ficar com 12).
+    2. Devolva a resposta EXATAMENTE no formato JSON abaixo. NÃO inclua nenhum texto adicional, saudações ou formatação markdown (sem ```json).
+    
+    FORMATO ESPERADO:
+    {
+      "advice": "Mensagem curta em português do Brasil explicando a decisão.",
+      "suggested_purchases": [
+        {
+          "product_id": "uuid-do-produto",
+          "supplier_id": "uuid-do-fornecedor-se-houver-senao-null",
+          "suggested_quantity": numero_inteiro
+        }
+      ]
+    }
+    """
+
+    prompt = f"{system_prompt}\n\n--- PRODUTOS CRÍTICOS ---\n{context_text}"
+
+    try:
+        print(f"--- [LLM Oracle] Iniciando requisição para o Ollama (JSON Mode) ---")
+        
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "llama3.2:1b",
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json", # Força o Ollama a cuspir JSON
+                    "options": {
+                        "temperature": 0.0, # Zero alucinação
+                        "top_p": 0.1
+                    }
+                }
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            raw_json_str = result.get("response", "{}").strip()
+            
+            # Tenta parsear o JSON retornado pela IA
+            try:
+                advice_data = json.loads(raw_json_str)
+                return advice_data
+            except json.JSONDecodeError:
+                print("--- [LLM Oracle] Erro: Ollama não retornou um JSON válido ---")
+                print(f"Raw: {raw_json_str}")
+                return {
+                    "advice": "O modelo de IA falhou em estruturar os dados. Tente novamente.",
+                    "suggested_purchases": []
+                }
+                
+    except httpx.ConnectError:
+        raise Exception("Serviço de IA (Ollama) está offline ou inacessível.")
+    except httpx.ReadTimeout:
+        raise Exception("O servidor de IA demorou muito para responder (Timeout).")
+    except Exception as e:
+        raise Exception(f"Erro na geração de reposição: {str(e)}")

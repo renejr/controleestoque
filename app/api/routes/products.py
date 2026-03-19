@@ -1,9 +1,12 @@
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, status
+import csv
+import io
+import decimal
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_, func
 from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import get_db, get_tenant_id
@@ -191,7 +194,170 @@ async def update_product(
             raise HTTPException(status_code=400, detail="Já existe um produto com este Código de Barras neste tenant.")
         raise HTTPException(status_code=400, detail="Erro de integridade ao atualizar produto.")
 
-@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/import", status_code=status.HTTP_200_OK)
+async def import_products_csv(
+    file: UploadFile = File(...),
+    dry_run: bool = Form(True),
+    tenant_id: UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Importa produtos em lote a partir de um arquivo CSV.
+    Se dry_run=True, apenas valida o arquivo e retorna um relatório de erros.
+    Se dry_run=False, realiza a validação e, se não houver erros impeditivos (ou ignorando as linhas com erro), insere os válidos no banco.
+    """
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="O arquivo deve ser um .csv")
+
+    contents = await file.read()
+    decoded_contents = contents.decode('utf-8-sig') # lida com BOM se houver
+    
+    # Lê o CSV
+    csv_reader = csv.DictReader(io.StringIO(decoded_contents), delimiter=',')
+    
+    # Padroniza as chaves do cabeçalho (remove espaços e converte para minúsculo)
+    if csv_reader.fieldnames:
+        csv_reader.fieldnames = [field.strip().lower() for field in csv_reader.fieldnames]
+
+    required_columns = {'name', 'sku', 'price', 'cost_price'}
+    if not required_columns.issubset(set(csv_reader.fieldnames or [])):
+        missing = required_columns - set(csv_reader.fieldnames or [])
+        raise HTTPException(status_code=400, detail=f"O arquivo CSV não contém as colunas obrigatóricas: {missing}")
+
+    # Busca SKUs já existentes no banco para este tenant para validação rápida
+    query_skus = select(Product.sku).where(Product.tenant_id == tenant_id)
+    result_skus = await db.execute(query_skus)
+    existing_skus = {row[0] for row in result_skus.all() if row[0]}
+
+    errors = []
+    valid_products_data = []
+    file_skus = set()
+    
+    line_number = 1 # Cabeçalho é a linha 1
+
+    for row in csv_reader:
+        line_number += 1
+        line_errors = []
+        
+        # Extração de campos básicos
+        name = row.get('name', '').strip()
+        sku = row.get('sku', '').strip()
+        barcode = row.get('barcode', '').strip() or None
+        
+        # Validação de nome e SKU
+        if not name:
+            line_errors.append("Nome do produto é obrigatório.")
+        if not sku:
+            line_errors.append("SKU é obrigatório.")
+        else:
+            if sku in existing_skus:
+                line_errors.append(f"O SKU '{sku}' já existe no banco de dados.")
+            if sku in file_skus:
+                line_errors.append(f"O SKU '{sku}' está duplicado neste arquivo CSV.")
+            file_skus.add(sku)
+
+        # Conversão e validação de números
+        try:
+            price = decimal.Decimal(row.get('price', '0').replace(',', '.'))
+            if price <= 0:
+                line_errors.append("Preço de venda deve ser maior que zero.")
+        except decimal.InvalidOperation:
+            line_errors.append("Formato inválido para Preço de Venda.")
+            price = decimal.Decimal('0')
+
+        try:
+            cost_price = decimal.Decimal(row.get('cost_price', '0').replace(',', '.'))
+            if cost_price < 0:
+                line_errors.append("Preço de custo não pode ser negativo.")
+        except decimal.InvalidOperation:
+            line_errors.append("Formato inválido para Preço de Custo.")
+            cost_price = decimal.Decimal('0')
+            
+        try:
+            min_stock = int(row.get('min_stock', '0'))
+        except ValueError:
+            line_errors.append("Estoque mínimo deve ser um número inteiro.")
+            min_stock = 0
+            
+        # Extração de campos opcionais e fiscais
+        description = row.get('description', '').strip() or None
+        category = row.get('category', '').strip() or None
+        ncm = row.get('ncm', '').strip() or None
+        cfop = row.get('cfop', '').strip() or None
+        cest = row.get('cest', '').strip() or None
+        
+        try:
+            origin = int(row.get('origin', '0'))
+        except ValueError:
+            origin = 0
+
+        if line_errors:
+            errors.append({"line": line_number, "sku": sku, "errors": line_errors})
+        else:
+            # Prepara o dict para inserção se for válido
+            valid_products_data.append({
+                "tenant_id": tenant_id,
+                "name": name,
+                "description": description,
+                "sku": sku,
+                "barcode": barcode,
+                "category": category,
+                "price": price,
+                "cost_price": cost_price,
+                "min_stock": min_stock,
+                "current_stock": 0, # Estoque inicial é sempre 0 na importação de cadastro
+                "ncm": ncm,
+                "cfop": cfop,
+                "cest": cest,
+                "origin": origin
+            })
+
+    total_processed = line_number - 1
+    valid_count = len(valid_products_data)
+
+    # Se for Dry-Run, apenas retorna o relatório
+    if dry_run:
+        return {
+            "dry_run": True,
+            "total_processed": total_processed,
+            "valid_count": valid_count,
+            "error_count": len(errors),
+            "errors": errors
+        }
+
+    # Se não for Dry-Run, insere no banco
+    if valid_count > 0:
+        # Gera embeddings em paralelo para não travar muito o loop
+        loop = asyncio.get_running_loop()
+        
+        # Função auxiliar para gerar um Product com embedding
+        async def create_product_with_embedding(p_data):
+            text_to_embed = f"{p_data['name']} {p_data['description'] or ''}"
+            vector = await loop.run_in_executor(None, embedding_service.generate_embedding, text_to_embed)
+            p_data['embedding'] = vector
+            return Product(**p_data)
+
+        # Processa todos de forma assíncrona
+        product_objects = await asyncio.gather(
+            *[create_product_with_embedding(data) for data in valid_products_data]
+        )
+        
+        db.add_all(product_objects)
+        
+        try:
+            await db.commit()
+        except IntegrityError as e:
+            await db.rollback()
+            raise HTTPException(status_code=500, detail=f"Erro crítico no banco de dados durante a importação em lote. Nenhuma linha foi salva. Detalhes: {str(e.orig)}")
+
+    return {
+        "dry_run": False,
+        "total_processed": total_processed,
+        "inserted_count": valid_count,
+        "error_count": len(errors),
+        "errors": errors,
+        "message": f"{valid_count} produtos importados com sucesso."
+    }
 async def delete_product(
     product_id: UUID,
     tenant_id: UUID = Depends(get_tenant_id),
