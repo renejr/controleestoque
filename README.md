@@ -8,14 +8,15 @@ Este projeto é dividido em um poderoso **Backend em Python (FastAPI)** e um apl
 
 ## 🚀 Principais Recursos
 
-- 🔐 **Multi-Tenant (SaaS):** Isolamento total de dados entre diferentes empresas/clientes usando PostgreSQL e UUID.
+- 🔐 **Multi-Tenant (SaaS) e RBAC:** Isolamento total de dados entre diferentes empresas/clientes usando PostgreSQL e UUID. Controle de acesso rigoroso por Perfis de Usuário (ADMIN, MANAGER, OPERATOR).
 - 📦 **Catálogo de Produtos:** Cadastro completo com regras logísticas (SKU, Código de Barras, Peso, Dimensões e Estoque Mínimo), classificação fiscal brasileira e motor de **Importação em Lote via CSV** com validação inteligente (Dry-Run).
-- 💸 **Módulo Financeiro:** Análise de Receita, Custo e Lucro Líquido gerados automaticamente a partir das movimentações de estoque.
+- 💸 **Módulo Financeiro e Vendas:** Análise de Receita, Custo e Lucro Líquido gerados automaticamente a partir das movimentações de estoque. Módulo de Pedidos de Venda com baixa atômica de estoque.
 - 🚚 **Gestão de Compras e Fornecedores:** Controle centralizado de parceiros, fluxo de Ordens de Compra com **gatilho automático de entrada em estoque** e geração de **Documentos PDF Profissionais**.
-- 🚛 **Gestão de Frota e Logística (TMS):** Cadastro de veículos e um poderoso motor de **Bin Packing 3D** (Cubagem), capaz de calcular matematicamente se uma lista de pedidos cabe no caminhão e retornar as coordenadas exatas (x,y,z) para empacotamento.
+- 🚛 **Gestão de Frota e Logística (TMS):** Cadastro de veículos e um poderoso motor de **Bin Packing 3D** (Cubagem), capaz de calcular matematicamente se uma lista de pedidos cabe no caminhão, desenhando uma **Planta Baixa (Blueprint) 2D** no app.
 - 🏛️ **Configurações Fiscais (Tenant):** Gestão de Razão Social, CNPJ e Regime Tributário por empresa.
 - 🕵️ **Caixa Preta (Auditoria):** Sistema de logs invisível que rastreia alterações críticas (INSERT, UPDATE, DELETE) em tempo real, permitindo aos administradores inspecionarem o "Antes e Depois" de cada registro através de um painel de visualização de JSON.
 - 🤖 **IA Dupla (CFO & CSO):** Dois oráculos alimentados por LLM local (Ollama / Llama 3.2). O CFO gera relatórios gerenciais financeiros, enquanto o CSO analisa estoques críticos e **monta o carrinho de compras automaticamente** para reposição (Human-in-the-Loop).
+- 🧪 **Segurança e Estabilidade:** Suíte de Testes Automatizados com `pytest` e transações de banco de dados isoladas para garantir que o motor financeiro e logístico não quebrem em produção.
 - 🔍 **Busca Semântica:** Motor de busca vetorial avançado utilizando `pgvector` para encontrar produtos até por sinônimos ou descrições abstratas.
 
 ---

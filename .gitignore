@@ -106,6 +106,9 @@ frontend/.pub/
 frontend/build/
 frontend/coverage/
 frontend/lib/generated_plugin_registrant.dart
+frontend/macos/Flutter/ephemeral/
+frontend/windows/flutter/ephemeral/
+frontend/linux/flutter/ephemeral/
 
 # iOS
 frontend/ios/Flutter/.last_build_id

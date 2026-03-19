@@ -9,5 +9,13 @@ from .purchase_order import PurchaseOrder
 from .purchase_order_item import PurchaseOrderItem
 from .audit_log import AuditLog
 from .vehicle import Vehicle
+from app.models.customer import Customer
+from app.models.sales_order import SalesOrder
+from app.models.sales_order_item import SalesOrderItem
+from app.models.suggestion import Suggestion
 
-__all__ = ["Base", "Tenant", "User", "Product", "InventoryTransaction", "AIInsight", "Supplier", "PurchaseOrder", "PurchaseOrderItem", "AuditLog", "Vehicle"]
+__all__ = [
+    "Base", "Tenant", "User", "Product", "InventoryTransaction", 
+    "AIInsight", "Supplier", "PurchaseOrder", "PurchaseOrderItem", 
+    "AuditLog", "Vehicle", "Customer", "SalesOrder", "SalesOrderItem", "Suggestion"
+]
