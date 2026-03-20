@@ -12,8 +12,8 @@ app = FastAPI(
 # Configuração de CORS para permitir o Flutter Web
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=["*"], # Em produção, defina o domínio exato
+    allow_credentials=False, # Como usamos Bearer Token e não cookies, False é seguro com allow_origins="*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -47,4 +47,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8002, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8080, reload=True)

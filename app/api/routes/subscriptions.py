@@ -10,7 +10,11 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.subscription import TenantProvisionRequest, TenantProvisionResponse
 
-router = APIRouter(prefix="/subscriptions", tags=["Subscriptions / Webhooks"])
+router = APIRouter(
+    prefix="/subscriptions", 
+    tags=["Subscriptions / Webhooks"],
+    dependencies=[Depends(verify_api_key)]
+)
 
 def generate_random_password(length=12):
     alphabet = string.ascii_letters + string.digits + string.punctuation
@@ -19,7 +23,6 @@ def generate_random_password(length=12):
 @router.post("/provision-tenant", response_model=TenantProvisionResponse, status_code=status.HTTP_201_CREATED)
 async def provision_tenant(
     payload: TenantProvisionRequest,
-    api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db)
 ):
     """

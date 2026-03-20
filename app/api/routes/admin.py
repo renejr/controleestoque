@@ -14,11 +14,14 @@ from app.models.user import User
 from app.schemas.audit_log import SuperAdminAuditLogResponse
 from app.schemas.suggestion import SuperAdminSuggestionResponse, SuggestionStatusUpdate
 
-router = APIRouter(prefix="/admin", tags=["Super Admin"])
+router = APIRouter(
+    prefix="/admin", 
+    tags=["Super Admin"],
+    dependencies=[Depends(verify_api_key)]
+)
 
 @router.get("/audit-logs", response_model=List[SuperAdminAuditLogResponse])
 async def get_all_audit_logs(
-    api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -62,7 +65,6 @@ async def get_all_audit_logs(
 async def update_suggestion_status(
     suggestion_id: UUID,
     payload: SuggestionStatusUpdate,
-    api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -111,7 +113,6 @@ async def update_suggestion_status(
 
 @router.get("/suggestions", response_model=List[SuperAdminSuggestionResponse])
 async def get_all_suggestions(
-    api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db)
 ):
     """
