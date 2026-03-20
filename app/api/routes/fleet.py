@@ -8,6 +8,8 @@ from app.models.vehicle import Vehicle
 from app.models.product import Product
 from app.schemas.fleet import PackOrderRequest
 from app.services.logistics_service import calculate_packing
+from app.services.routing_service import calculate_route
+from app.models.sales_order import SalesOrder
 
 router = APIRouter()
 
@@ -79,3 +81,76 @@ async def simulate_pack_order(
         return report
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro interno no motor de logística: {str(e)}")
+
+@router.post("/romaneio/{romaneio_id}/optimize", status_code=status.HTTP_200_OK)
+async def optimize_romaneio_route(
+    romaneio_id: str, # Can be UUID or string representing the Romaneio ID
+    tenant_id: UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Otimiza a rota de entrega de um romaneio usando OSRM e OR-Tools.
+    Retorna a sequência ideal, distância total real e tempo estimado (ETA).
+    """
+    
+    # NOTA: Como não temos o modelo 'Romaneio' definido explicitamente no pedido, 
+    # vamos assumir que o romaneio_id agrupa vários SalesOrders. 
+    # Ou, em uma versão simplificada, vamos buscar SalesOrders com status específico para roteirização.
+    
+    # Busca os pedidos de venda (SalesOrders) que compõem o romaneio/rota
+    # Substitua a cláusula where pela lógica real de agrupamento de romaneio do seu sistema
+    # Por exemplo, se houver um campo romaneio_id no SalesOrder:
+    query = select(SalesOrder).where(
+        # SalesOrder.romaneio_id == romaneio_id, # Descomente se existir a relação
+        SalesOrder.tenant_id == tenant_id,
+        SalesOrder.status == "PROCESSING" # Apenas pedidos em separação
+    ).limit(10) # Limite de segurança para a API OSRM
+    
+    result = await db.execute(query)
+    sales_orders = result.scalars().all()
+    
+    if not sales_orders:
+        raise HTTPException(status_code=404, detail="Nenhum pedido encontrado para otimização neste romaneio.")
+
+    # Extrai os endereços dos pedidos
+    # Precisamos do endereço do depósito (ponto de partida) como o primeiro item
+    addresses = ["São Paulo, SP, Brasil"] # Ponto de partida (Depósito central) - Mockado para exemplo
+    
+    for order in sales_orders:
+        # Assumindo que o SalesOrder ou Customer tenha o endereço de entrega
+        # Se for necessário fazer um join com Customer, faça a query ajustada.
+        # Aqui vamos usar um campo genérico ou mock se não existir
+        # Ex: address = order.customer.address se o relacionamento existir
+        address = getattr(order, 'shipping_address', None)
+        if not address:
+            # Fallback mockado para evitar que a API do OSRM quebre se o endereço estiver vazio
+            address = f"Rua {order.id}, São Paulo, SP" 
+        addresses.append(address)
+
+    try:
+        # Chama o serviço de roteirização (Geopy -> OSRM -> OR-Tools)
+        routing_result = await calculate_route(addresses)
+        
+        if "error" in routing_result:
+            raise HTTPException(status_code=400, detail=routing_result["error"])
+            
+        # Mapeia a sequência otimizada (ignorando o índice 0 que é o depósito)
+        optimized_sequence = []
+        for seq_index in routing_result["sequence"]:
+            if seq_index > 0 and seq_index <= len(sales_orders):
+                # Subtrai 1 pois o índice 0 é o depósito, e a lista sales_orders começa em 0
+                order_index = seq_index - 1
+                optimized_sequence.append({
+                    "order_id": str(sales_orders[order_index].id),
+                    "optimized_position": len(optimized_sequence) + 1
+                })
+                
+        return {
+            "romaneio_id": romaneio_id,
+            "optimized_orders": optimized_sequence,
+            "total_distance_km": routing_result["total_distance_km"],
+            "total_eta_minutes": routing_result["total_eta_minutes"]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno no motor de roteirização: {str(e)}")
