@@ -155,8 +155,7 @@ async def update_purchase_order(
                     type="IN",
                     quantity=int(item.quantity), # Estoque geralmente é int na nossa regra atual
                     unit_cost=item.unit_price,
-                    unit_price=product.price, # Mantém o preço de venda atual do produto
-                    notes=f"Ref. Ordem de Compra #{str(order.id)[:8]}"
+                    unit_price=product.price # Mantém o preço de venda atual do produto
                 )
                 db.add(transaction)
                 

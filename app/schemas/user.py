@@ -7,7 +7,7 @@ class UserBase(BaseModel):
     name: Optional[str] = None
     email: EmailStr
     role: str = Field(default="OPERATOR", description="ADMIN, MANAGER, or OPERATOR")
-    is_active: bool = True
+    is_active: Optional[bool] = True
 
 class UserCreate(UserBase):
     password: str

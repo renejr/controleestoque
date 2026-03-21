@@ -20,6 +20,7 @@ router = APIRouter()
 async def create_sales_order(
     order_in: SalesOrderCreate,
     tenant_id: UUID = Depends(get_tenant_id),
+    user = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     # Verifica se o cliente existe
@@ -33,96 +34,96 @@ async def create_sales_order(
         tenant_id=tenant_id,
         customer_id=order_in.customer_id,
         status="DRAFT",
-        notes=order_in.notes,
-        total_amount=0.0
+        notes=order_in.notes
     )
     db.add(order)
-    await db.flush() # Para gerar o order.id
-    
+    await db.flush() # Para gerar o ID do pedido
+
+    # Adiciona os itens
     total_amount = 0.0
-    
-    # Processa os itens e calcula o total
     for item_in in order_in.items:
-        # Verifica o produto
-        query_prod = select(Product).where(Product.id == item_in.product_id, Product.tenant_id == tenant_id)
-        product = (await db.execute(query_prod)).scalars().first()
+        # Pega o produto para validar e pegar o preço
+        query_product = select(Product).where(Product.id == item_in.product_id, Product.tenant_id == tenant_id)
+        product = (await db.execute(query_product)).scalars().first()
+        
         if not product:
-            raise HTTPException(status_code=404, detail=f"Produto com ID {item_in.product_id} não encontrado.")
+            raise HTTPException(status_code=404, detail=f"Produto {item_in.product_id} não encontrado.")
             
-        # Opcional: verificar se há estoque suficiente já no momento da criação (depende da regra de negócio)
-        # Por enquanto, só avisamos, mas não bloqueamos o rascunho
-            
+        unit_price = item_in.unit_price if item_in.unit_price else product.sale_price
+        subtotal = unit_price * item_in.quantity
+        total_amount += subtotal
+        
         order_item = SalesOrderItem(
-            sales_order_id=order.id,
-            product_id=item_in.product_id,
+            order_id=order.id,
+            product_id=product.id,
             quantity=item_in.quantity,
-            unit_price=item_in.unit_price
+            unit_price=unit_price,
+            subtotal=subtotal
         )
         db.add(order_item)
-        total_amount += (item_in.quantity * item_in.unit_price)
         
     order.total_amount = total_amount
     
-    try:
-        await db.commit()
-        await db.refresh(order, ['items'])
-        
-        # Auditoria
-        new_data = {
-            "id": str(order.id), "customer_id": str(order.customer_id), 
-            "status": order.status, "total_amount": float(order.total_amount)
-        }
-        await log_audit_event(db, tenant_id, None, "INSERT", "sales_orders", str(order.id), None, new_data)
-        await db.commit()
-        
-        return order
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+    # Auditoria
+    new_data = {"customer_id": str(order.customer_id), "total_amount": float(order.total_amount), "status": order.status}
+    await log_audit_event(db, tenant_id, user.id, "INSERT", "sales_orders", str(order.id), None, new_data)
+    
+    await db.commit()
+    await db.refresh(order)
+    
+    # Retorna com os itens carregados
+    query = select(SalesOrder).options(selectinload(SalesOrder.items)).where(SalesOrder.id == order.id)
+    return (await db.execute(query)).scalars().first()
 
 @router.get("/", response_model=List[SalesOrderResponse])
-async def list_sales_orders(
-    skip: int = 0, limit: int = 50,
+async def get_sales_orders(
     tenant_id: UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(SalesOrder).where(SalesOrder.tenant_id == tenant_id).options(selectinload(SalesOrder.items)).offset(skip).limit(limit)
+    query = select(SalesOrder).options(selectinload(SalesOrder.items)).where(SalesOrder.tenant_id == tenant_id)
     result = await db.execute(query)
     return result.scalars().all()
+
+@router.get("/{order_id}", response_model=SalesOrderResponse)
+async def get_sales_order(
+    order_id: UUID,
+    tenant_id: UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(SalesOrder).options(selectinload(SalesOrder.items)).where(SalesOrder.id == order_id, SalesOrder.tenant_id == tenant_id)
+    order = (await db.execute(query)).scalars().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado.")
+    return order
 
 @router.patch("/{order_id}/status", response_model=SalesOrderResponse)
 async def update_sales_order_status(
     order_id: UUID,
     status_update: SalesOrderStatusUpdate,
     tenant_id: UUID = Depends(get_tenant_id),
-    user=Depends(get_current_user),
+    user = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(SalesOrder).where(SalesOrder.id == order_id, SalesOrder.tenant_id == tenant_id).options(selectinload(SalesOrder.items))
-    result = await db.execute(query)
-    order = result.scalars().first()
+    query = select(SalesOrder).options(selectinload(SalesOrder.items)).where(SalesOrder.id == order_id, SalesOrder.tenant_id == tenant_id)
+    order = (await db.execute(query)).scalars().first()
     
     if not order:
-        raise HTTPException(status_code=404, detail="Pedido de Venda não encontrado")
-
+        raise HTTPException(status_code=404, detail="Pedido não encontrado.")
+        
     old_status = order.status
-    new_status = status_update.status.upper()
+    new_status = status_update.status
     
     if old_status == new_status:
         return order
-
-    # Impede voltar atrás se já foi entregue ou cancelado (opcional, regra de negócio)
-    if old_status in ["DELIVERED", "CANCELLED"]:
-        raise HTTPException(status_code=400, detail=f"Não é possível alterar o status de um pedido já {old_status}.")
-
+        
     order.status = new_status
     
-    # GATILHO LOGÍSTICO: Se o status mudar para SHIPPED (Enviado), fazemos a baixa no estoque
-    if new_status == "SHIPPED" and old_status != "SHIPPED":
+    # Se o pedido foi marcado como SHIPPED (enviado), precisamos dar baixa no estoque
+    if new_status == "SHIPPED":
         for item in order.items:
-            # Busca o produto com lock para garantir a transação atômica
-            query_prod = select(Product).where(Product.id == item.product_id).with_for_update()
-            product = (await db.execute(query_prod)).scalars().first()
+            # Busca o produto para atualizar o estoque
+            query_product = select(Product).where(Product.id == item.product_id, Product.tenant_id == tenant_id)
+            product = (await db.execute(query_product)).scalars().first()
             
             if not product:
                 raise HTTPException(status_code=404, detail="Produto do pedido não encontrado no banco.")
@@ -140,12 +141,10 @@ async def update_sales_order_status(
             transaction = InventoryTransaction(
                 tenant_id=tenant_id,
                 product_id=product.id,
-                user_id=user.id,
-                transaction_type="OUT",
+                type="OUT",
                 quantity=item.quantity,
                 unit_cost=product.cost_price, # Custo da mercadoria no momento da saída (para DRE)
-                unit_price=item.unit_price,   # Preço de venda cobrado no pedido
-                notes=f"Venda - Pedido #{str(order.id)[:8]}"
+                unit_price=item.unit_price    # Preço de venda cobrado no pedido
             )
             db.add(transaction)
 
@@ -160,4 +159,4 @@ async def update_sales_order_status(
         return order
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar status: {str(e)}")

@@ -21,7 +21,7 @@ app.add_middleware(
 # Registra os routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(health.router, tags=["Health"])
-app.include_router(tenants.router, prefix="/api/admin/tenants", tags=["Super Admin - Tenants"])
+app.include_router(tenants.router, prefix="/tenants", tags=["Tenants"])
 app.include_router(products.router, prefix="/products", tags=["Products"])
 app.include_router(transactions.router, prefix="/transactions", tags=["Inventory Transactions"])
 app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
