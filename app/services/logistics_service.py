@@ -24,9 +24,16 @@ def calculate_packing(vehicle, products_list: list):
 
     # 2. Adiciona os Produtos como Items
     # py3dbp usa (name, width, height, depth, weight)
+    names_map = {} # Mapa para lembrar os nomes
+    
     for index, p in enumerate(products_list):
+        base_id = str(p['id'])
         # Cria um ID único para a unidade física (para não misturar se houver produtos iguais)
-        item_id = f"{p['id']}_{index}"
+        item_id = f"{base_id}_{index}"
+        
+        # Guarda o nome real associado ao ID base
+        names_map[base_id] = p.get('name', f"Produto [{base_id[:8]}]")
+        
         packer.add_item(Item(
             item_id,
             p['width'],
@@ -42,21 +49,27 @@ def calculate_packing(vehicle, products_list: list):
     # Como só adicionamos 1 Bin (o veículo), pegamos o primeiro resultado
     b = packer.bins[0]
     
-    fitted_items = []
     total_weight_used = 0.0
     total_volume_used = 0.0
 
+    fitted_items = []
     for item in b.items:
+        # Precisamos das dimensões reais após a rotação!
+        rot_dim = item.get_dimension()
+        
+        # Extrai o base_id separando pelo '_'
+        raw_id = str(item.name)
+        base_id = raw_id.split('_')[0]
+
         fitted_items.append({
-            "item_id": item.name,
-            "dimensions": {
-                "width": float(item.width),
-                "height": float(item.height),
-                "length": float(item.depth)
-            },
+            "item_id": raw_id,
+            "name": names_map.get(base_id, "Desconhecido"), # A CEREJA DO BOLO AQUI
+            "width": float(rot_dim[0]),   # Eixo X (Largura rodada)
+            "height": float(rot_dim[1]),  # Eixo Y (Altura rodada)
+            "depth": float(rot_dim[2]),   # Eixo Z (Comprimento rodado)
             "position": {
                 "x": float(item.position[0]),
-                "y": float(item.position[1]),
+                "y": float(item.position[1]), # Altura do empilhamento
                 "z": float(item.position[2])
             },
             "rotation_type": item.rotation_type,

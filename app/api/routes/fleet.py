@@ -35,92 +35,48 @@ async def simulate_pack_order(
     products_to_pack = []
     
     for req_item in request_data.items:
-        query_prod = select(Product).where(Product.id == req_item.product_id, Product.tenant_id == tenant_id)
-        result_prod = await db.execute(query_prod)
-        product = result_prod.scalars().first()
+        query_product = select(Product).where(Product.id == req_item.product_id, Product.tenant_id == tenant_id)
+        result_product = await db.execute(query_product)
+        product = result_product.scalars().first()
         
         if not product:
-            raise HTTPException(status_code=404, detail=f"Produto com ID {req_item.product_id} não encontrado.")
+            raise HTTPException(status_code=404, detail=f"Produto {req_item.product_id} não encontrado.")
             
-        # Valida se o produto possui as dimensões logísticas cadastradas (Fase 1 do projeto)
-        # Assumindo que os campos logísticos do Product model sejam (weight, width, height, length) ou similares
-        # Se os campos não existirem no Product model atual, usaremos um fallback temporário.
-        try:
-            # Tenta pegar as propriedades se existirem (depende de como o Product foi modelado na Fase 1)
-            weight = float(getattr(product, 'weight', 0))
-            width = float(getattr(product, 'width', 0))
-            height = float(getattr(product, 'height', 0))
-            length = float(getattr(product, 'length', 0))
-        except AttributeError:
-            # Fallback seguro caso os campos logísticos ainda não tenham sido injetados na Model Product
-            weight = 0.0
-            width = 0.0
-            height = 0.0
-            length = 0.0
-
-        if weight <= 0 or width <= 0 or height <= 0 or length <= 0:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"O produto '{product.name}' não possui dimensões ou peso logístico válidos (> 0) cadastrados. Atualize o cadastro do produto primeiro."
-            )
-
-        # Desmembra a quantidade em unidades individuais para o algoritmo
+        # Adiciona a quantidade de itens solicitada
         for _ in range(req_item.quantity):
             products_to_pack.append({
                 "id": str(product.id),
-                "name": product.name,
-                "weight": weight,
-                "width": width,
-                "height": height,
-                "length": length
+                "name": product.name,  # <--- A CEREJA DO BOLO: O NOME INJETADO AQUI!
+                "width": product.width,
+                "height": product.height,
+                "length": product.length,
+                "weight": product.weight
             })
 
-    # 3. Executa o Motor de Logística
+    # 3. Executa o Motor de Cubagem
     try:
-        report = calculate_packing(vehicle, products_to_pack)
-        return report
+        packing_report = calculate_packing(vehicle, products_to_pack)
+        return packing_report
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro interno no motor de logística: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro interno no motor de cubagem: {str(e)}")
 
-@router.post("/romaneio/{romaneio_id}/optimize", status_code=status.HTTP_200_OK)
-async def optimize_romaneio_route(
-    romaneio_id: str, # Can be UUID or string representing the Romaneio ID
+@router.post("/optimize-route", status_code=status.HTTP_200_OK)
+async def optimize_fleet_route(
+    romaneio_id: str,
+    sales_orders_ids: list[UUID],
     tenant_id: UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Otimiza a rota de entrega de um romaneio usando OSRM e OR-Tools.
-    Retorna a sequência ideal, distância total real e tempo estimado (ETA).
-    """
-    
-    # NOTA: Como não temos o modelo 'Romaneio' definido explicitamente no pedido, 
-    # vamos assumir que o romaneio_id agrupa vários SalesOrders. 
-    # Ou, em uma versão simplificada, vamos buscar SalesOrders com status específico para roteirização.
-    
-    # Busca os pedidos de venda (SalesOrders) que compõem o romaneio/rota
-    # Substitua a cláusula where pela lógica real de agrupamento de romaneio do seu sistema
-    # Por exemplo, se houver um campo romaneio_id no SalesOrder:
-    query = select(SalesOrder).where(
-        # SalesOrder.romaneio_id == romaneio_id, # Descomente se existir a relação
-        SalesOrder.tenant_id == tenant_id,
-        SalesOrder.status == "PROCESSING" # Apenas pedidos em separação
-    ).limit(10) # Limite de segurança para a API OSRM
-    
-    result = await db.execute(query)
-    sales_orders = result.scalars().all()
-    
-    if not sales_orders:
-        raise HTTPException(status_code=404, detail="Nenhum pedido encontrado para otimização neste romaneio.")
+    query_orders = select(SalesOrder).where(SalesOrder.id.in_(sales_orders_ids), SalesOrder.tenant_id == tenant_id)
+    result_orders = await db.execute(query_orders)
+    sales_orders = result_orders.scalars().all()
 
-    # Extrai os endereços dos pedidos
-    # Precisamos do endereço do depósito (ponto de partida) como o primeiro item
-    addresses = ["São Paulo, SP, Brasil"] # Ponto de partida (Depósito central) - Mockado para exemplo
-    
+    if not sales_orders:
+        raise HTTPException(status_code=404, detail="Nenhum pedido encontrado.")
+
+    addresses = ["Centro de Distribuição Base, São Paulo, SP"] # CD fixo como ponto 0
+
     for order in sales_orders:
-        # Assumindo que o SalesOrder ou Customer tenha o endereço de entrega
-        # Se for necessário fazer um join com Customer, faça a query ajustada.
-        # Aqui vamos usar um campo genérico ou mock se não existir
-        # Ex: address = order.customer.address se o relacionamento existir
         address = getattr(order, 'shipping_address', None)
         if not address:
             # Fallback mockado para evitar que a API do OSRM quebre se o endereço estiver vazio
@@ -153,4 +109,4 @@ async def optimize_romaneio_route(
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro interno no motor de roteirização: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao otimizar rota: {str(e)}")

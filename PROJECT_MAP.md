@@ -10,22 +10,19 @@ Sistema de Gestão de Estoque (WMS) evoluindo para um ERP SaaS focado em lucrati
 ```text
 C:\gestaoestoque\
 ├── app/                        # Backend (Python / FastAPI)
-│   ├── api/                    # Controladores da API
-│   │   ├── endpoints/          # (Legado - migrado para rotas)
-│   │   └── routes/             # Rotas do FastAPI agrupadas por domínio
+│   ├── api/routes/             # Rotas do FastAPI agrupadas por domínio (fleet, sales, etc)
 │   ├── core/                   # Configurações de segurança, banco e dependências
 │   ├── models/                 # Modelos do SQLAlchemy (Mapeamento Objeto-Relacional)
 │   ├── schemas/                # Schemas do Pydantic (Validação de dados entrada/saída)
-│   ├── services/               # Regras de negócio complexas e integrações externas (ex: Ollama)
+│   ├── services/               # Regras de negócio complexas, py3dbp (Cubagem) e integrações (Ollama, OSRM)
 │   └── main.py                 # Ponto de entrada do servidor FastAPI
 ├── frontend/                   # Frontend (Flutter / Dart)
 │   ├── lib/
 │   │   ├── core/               # Constantes, temas e cliente HTTP base
-│   │   ├── models/             # Classes de modelo de dados do Dart
-│   │   ├── providers/          # Gerenciamento de estado global (Provider)
-│   │   ├── screens/            # Telas da interface de usuário
-│   │   │   └── widgets/        # Componentes visuais reutilizáveis
-│   │   ├── services/           # Comunicação com a API (HTTP)
+│   │   ├── models/             # Classes Dart espelhando o banco de dados
+│   │   ├── providers/          # Gerenciamento de estado (Provider)
+│   │   ├── screens/            # Telas da aplicação e Widgets Customizados (TruckBedVisualizer)
+│   │   └── services/           # Comunicação com a API (HTTP Requests e WebSockets)
 │   │   └── main.dart           # Ponto de entrada e configuração de rotas/estado do app
 │   └── pubspec.yaml            # Gerenciamento de dependências do Flutter
 ├── alembic/                    # Arquivos de migração do banco de dados (Backend)

@@ -52,6 +52,18 @@ ARTICLES = [
             "o chat é estritamente isolado por empresa (Tenant). Um usuário só pode visualizar e conversar com outros funcionários "
             "que estejam cadastrados sob o mesmo CNPJ/Empresa. O histórico das conversas é salvo no banco de dados e pode ser consultado a qualquer momento."
         )
+    },
+    {
+        "title": "Como cadastrar um Produto e Regras Logísticas",
+        "category": "PRODUTOS",
+        "content": (
+            "Para cadastrar um produto, acesse a aba 'Produtos' no menu inferior e clique no botão '+'. "
+            "Você precisará informar dados básicos como Nome, SKU, Preço de Custo e Preço de Venda. "
+            "É obrigatório preencher os campos logísticos: Largura, Altura, Profundidade (em cm) e Peso (em kg). "
+            "Essas dimensões são cruciais porque alimentam o nosso Simulador de Carga 3D (Bin Packing) "
+            "na hora de roteirizar a frota. Se você deixar as dimensões zeradas, o sistema não conseguirá calcular "
+            "o espaço que a caixa ocupa no caminhão."
+        )
     }
 ]
 

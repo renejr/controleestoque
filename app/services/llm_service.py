@@ -102,6 +102,26 @@ async def generate_inventory_insights(dashboard_data: dict) -> str:
         traceback.print_exc()
         return f"Erro inesperado ao consultar o oráculo de estoque: {type(e).__name__} - {str(e)}"
 
+async def get_embedding(text: str) -> list[float]:
+    """
+    Gera um vetor de embedding para um texto usando o modelo nomic-embed-text do Ollama.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "http://localhost:11434/api/embeddings",
+                json={
+                    "model": "nomic-embed-text",
+                    "prompt": text
+                }
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result.get("embedding", [])
+    except Exception as e:
+        print(f"--- [LLM Service] Erro ao gerar embedding: {str(e)} ---")
+        return []
+
 async def generate_support_answer(question: str, context_text: str) -> str:
     """
     Usa um LLM local (via Ollama) para atuar como um agente de suporte,
@@ -110,7 +130,10 @@ async def generate_support_answer(question: str, context_text: str) -> str:
     
     prompt = f"""
     Você é o Agente de Suporte Especialista do nosso ERP SaaS de Gestão de Estoque.
-    Seja educado, direto e ajude o usuário. 
+    Seja extremamente útil e amigável.
+    
+    Abaixo está a BASE DE CONHECIMENTO do sistema, contendo o manual e os tutoriais passo a passo.
+    Você DEVE usar essa base para responder a pergunta do usuário.
     
     --- BASE DE CONHECIMENTO (MANUAL DO SISTEMA) ---
     {context_text}
@@ -119,17 +142,16 @@ async def generate_support_answer(question: str, context_text: str) -> str:
     {question}
     
     INSTRUÇÕES RÍGIDAS:
-    1. Responda APENAS com base na "BASE DE CONHECIMENTO" fornecida acima.
-    2. Se a resposta não estiver no contexto fornecido, diga exatamente: "Desculpe, não encontrei essa informação no manual. Por favor, contate nosso suporte humano através da aba de Ajuda."
-    3. Não invente informações (evite alucinações).
-    4. Responda EXCLUSIVAMENTE em Português do Brasil.
-    5. Formate a resposta em Markdown limpo para facilitar a leitura no chat.
+    1. Responda à pergunta do usuário baseando-se no texto acima.
+    2. Se a informação não constar no texto, diga educadamente que não sabe e peça para contatar o suporte humano.
+    3. Formate a sua resposta usando Markdown (listas, negritos, etc.) para ficar fácil de ler no chat.
+    4. Responda sempre em Português do Brasil.
     """
 
     try:
         print(f"--- [LLM Service] Iniciando requisição de Suporte para o Ollama ---")
         
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(
                 "http://localhost:11434/api/generate",
                 json={
@@ -138,6 +160,7 @@ async def generate_support_answer(question: str, context_text: str) -> str:
                     "stream": False,
                     "options": {
                         "temperature": 0.1, # Temperatura baixa para garantir fidelidade ao manual
+                        "num_predict": 500,
                     }
                 }
             )

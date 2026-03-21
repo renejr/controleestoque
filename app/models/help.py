@@ -2,6 +2,7 @@ import uuid
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+from pgvector.sqlalchemy import Vector
 from app.models.base import Base
 
 class HelpArticle(Base):
@@ -14,6 +15,7 @@ class HelpArticle(Base):
     title = Column(String(255), nullable=False)
     content = Column(Text, nullable=False)
     category = Column(String(100), nullable=False, index=True) # Ex: 'ESTOQUE', 'FINANCEIRO', 'GERAL'
+    embedding = Column(Vector(768), nullable=True) # Vetor para RAG (Nomic Embed Text usa 768)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

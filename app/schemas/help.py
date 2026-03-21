@@ -27,4 +27,13 @@ class ChatbotRequest(BaseModel):
     message: str = Field(..., min_length=1, description="Pergunta do usuário para a IA")
 
 class ChatbotResponse(BaseModel):
-    answer: str = Field(..., description="Resposta gerada pela IA")
+    answer: str
+
+class ChatbotLogResponse(BaseModel):
+    id: str
+    user_message: str
+    bot_response: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
