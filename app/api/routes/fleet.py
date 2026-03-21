@@ -1,15 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from uuid import UUID
+import json
 
 from app.core.deps import get_db, get_tenant_id
 from app.models.vehicle import Vehicle
 from app.models.product import Product
-from app.schemas.fleet import PackOrderRequest
-from app.services.logistics_service import calculate_packing
-from app.services.routing_service import calculate_route
 from app.models.sales_order import SalesOrder
+from app.schemas.fleet import PackOrderRequest
+from app.services.logistics_service import calculate_packing  # <--- CORREÇÃO AQUI: Importando do arquivo certo!
+from app.services.routing_service import calculate_route
+from app.services.pdf_service import generate_manifest_pdf
 
 router = APIRouter()
 
@@ -46,7 +49,7 @@ async def simulate_pack_order(
         for _ in range(req_item.quantity):
             products_to_pack.append({
                 "id": str(product.id),
-                "name": product.name,  # <--- A CEREJA DO BOLO: O NOME INJETADO AQUI!
+                "name": product.name,
                 "width": product.width,
                 "height": product.height,
                 "length": product.length,
@@ -110,3 +113,29 @@ async def optimize_fleet_route(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao otimizar rota: {str(e)}")
+
+@router.post("/manifests/{romaneio_id}/pdf")
+async def download_manifest_pdf(
+    romaneio_id: str,
+    payload: dict, # Recebe os dados de packing e routing via body temporariamente
+    tenant_id: UUID = Depends(get_tenant_id)
+):
+    """
+    Gera o PDF Tático de Romaneio com Planta Baixa e Checklist.
+    """
+    try:
+        vehicle_data = payload.get("vehicle", {})
+        manifest_data = payload.get("manifest", {})
+        manifest_data['romaneio_id'] = romaneio_id
+        
+        pdf_bytes = generate_manifest_pdf(manifest_data, vehicle_data)
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=Romaneio_{romaneio_id}.pdf"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar PDF: {str(e)}")

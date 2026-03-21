@@ -54,11 +54,10 @@ async def create_sales_order(
         total_amount += subtotal
         
         order_item = SalesOrderItem(
-            order_id=order.id,
+            sales_order_id=order.id,
             product_id=product.id,
             quantity=item_in.quantity,
             unit_price=unit_price,
-            subtotal=subtotal
         )
         db.add(order_item)
         
