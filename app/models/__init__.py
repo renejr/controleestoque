@@ -16,10 +16,11 @@ from app.models.suggestion import Suggestion
 from app.models.nfe_document import NfeDocument
 from app.models.message import ChatMessage
 from app.models.help import HelpArticle, ChatbotLog
+from app.models.distribution_center import DistributionCenter
 
 __all__ = [
     "Base", "Tenant", "User", "Product", "InventoryTransaction", 
     "AIInsight", "Supplier", "PurchaseOrder", "PurchaseOrderItem", 
     "AuditLog", "Vehicle", "Customer", "SalesOrder", "SalesOrderItem", "Suggestion",
-    "NfeDocument", "ChatMessage", "HelpArticle", "ChatbotLog"
+    "NfeDocument", "ChatMessage", "HelpArticle", "ChatbotLog", "DistributionCenter"
 ]

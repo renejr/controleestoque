@@ -23,6 +23,9 @@ class Vehicle(Base):
     compartment_height = Column(Float, nullable=False)
     compartment_length = Column(Float, nullable=False)
 
+    # Vínculo com Centro de Distribuição (Base / Ponto 0)
+    cd_id = Column(UUID(as_uuid=True), ForeignKey('distribution_centers.id', ondelete="SET NULL"), nullable=True)
+
     __table_args__ = (
         UniqueConstraint('tenant_id', 'license_plate', name='uq_tenant_license_plate'),
     )

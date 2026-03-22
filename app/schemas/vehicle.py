@@ -11,6 +11,7 @@ class VehicleBase(BaseModel):
     compartment_width: float = Field(..., gt=0, description="Largura do baú em cm")
     compartment_height: float = Field(..., gt=0, description="Altura do baú em cm")
     compartment_length: float = Field(..., gt=0, description="Profundidade do baú em cm")
+    cd_id: Optional[UUID] = Field(None, description="ID do Centro de Distribuição (Base)")
 
 class VehicleCreate(VehicleBase):
     pass
@@ -24,6 +25,7 @@ class VehicleUpdate(BaseModel):
     compartment_width: Optional[float] = Field(None, gt=0)
     compartment_height: Optional[float] = Field(None, gt=0)
     compartment_length: Optional[float] = Field(None, gt=0)
+    cd_id: Optional[UUID] = Field(None)
 
 class VehicleResponse(VehicleBase):
     id: UUID

@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text, Date, cast
 from uuid import UUID
 from datetime import datetime, timedelta
+import httpx
 
 from app.core.deps import get_db, get_tenant_id, get_current_user
 from app.models.transaction import InventoryTransaction
@@ -83,3 +84,78 @@ async def get_finance_summary(
         net_profit=net_profit,
         daily_data=daily_data
     )
+
+@router.get("/insights")
+async def get_finance_insights(
+    tenant_id: UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Proteção RBAC: Apenas roles financeiras e gerenciais
+    allowed_roles = ['ADMIN', 'MANAGER', 'FINANCIAL', 'AUDITOR']
+    if current_user.role not in allowed_roles:
+        raise HTTPException(
+            status_code=403, 
+            detail="Acesso Negado. Seu perfil não tem permissão para visualizar Insights Financeiros."
+        )
+
+    # 1. Calcular Totais do Mês Atual para o Oráculo
+    first_day_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    query_totals = select(
+        func.sum(InventoryTransaction.quantity * InventoryTransaction.unit_price).label('total_revenue'),
+        func.sum(InventoryTransaction.quantity * InventoryTransaction.unit_cost).label('total_cost')
+    ).where(
+        InventoryTransaction.tenant_id == tenant_id,
+        InventoryTransaction.type == 'OUT',
+        InventoryTransaction.date >= first_day_of_month
+    )
+    
+    result_totals = await db.execute(query_totals)
+    totals_row = result_totals.first()
+    
+    revenue = float(totals_row.total_revenue or 0.0)
+    cost = float(totals_row.total_cost or 0.0)
+    profit = revenue - cost
+    margin = (profit / revenue * 100) if revenue > 0 else 0.0
+
+    # 2. Construir o Prompt para o Ollama
+    system_prompt = (
+        "Você é o CFO (Diretor Financeiro) de uma empresa de varejo. "
+        "Analise os indicadores financeiros do mês atual e forneça um insight "
+        "direto, executivo e acionável. Seja extremamente conciso, use no máximo 2 frases. "
+        "Não cumprimente, vá direto ao ponto."
+    )
+    
+    user_prompt = (
+        f"Resultados do mês: Faturamento R$ {revenue:.2f}, "
+        f"CMV (Custo) R$ {cost:.2f}, "
+        f"Lucro Bruto R$ {profit:.2f}, "
+        f"Margem de Lucro {margin:.1f}%."
+    )
+
+    # 3. Chamar o Ollama Local
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "llama3.2:1b",
+                    "system": system_prompt,
+                    "prompt": user_prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.3 # Mais determinístico/analítico
+                    }
+                },
+                timeout=30.0
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                insight_text = data.get("response", "").strip()
+                return {"insight": insight_text}
+            else:
+                return {"insight": "O Oráculo Financeiro está temporariamente indisponível."}
+    except Exception as e:
+        return {"insight": f"Não foi possível conectar ao motor de IA. Detalhe: {str(e)}"}
