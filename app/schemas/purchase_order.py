@@ -22,7 +22,8 @@ class PurchaseOrderItemResponse(PurchaseOrderItemBase):
 # --- Order ---
 class PurchaseOrderBase(BaseModel):
     supplier_id: UUID
-    status: str = Field(default="DRAFT", pattern="^(DRAFT|PENDING|COMPLETED|CANCELLED)$")
+    cd_id: Optional[UUID] = None
+    status: str = Field(default="DRAFT", pattern="^(DRAFT|PENDING|RECEIVED|CANCELLED)$")
     total_amount: Decimal = Field(default=0.00, ge=0)
     notes: Optional[str] = None
 
@@ -30,14 +31,17 @@ class PurchaseOrderCreate(PurchaseOrderBase):
     items: List[PurchaseOrderItemCreate] = []
 
 class PurchaseOrderUpdate(BaseModel):
-    status: Optional[str] = Field(None, pattern="^(DRAFT|PENDING|COMPLETED|CANCELLED)$")
+    status: Optional[str] = Field(None, pattern="^(DRAFT|PENDING|RECEIVED|CANCELLED)$")
     total_amount: Optional[Decimal] = Field(None, ge=0)
     notes: Optional[str] = None
+    cd_id: Optional[UUID] = None
+    version: Optional[int] = None
 
 class PurchaseOrderResponse(PurchaseOrderBase):
     id: UUID
     tenant_id: UUID
     order_date: datetime
+    version: int
     items: List[PurchaseOrderItemResponse] = []
 
     model_config = {"from_attributes": True}

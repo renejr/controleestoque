@@ -27,6 +27,7 @@ async def create_purchase_order(
     db_order = PurchaseOrder(
         tenant_id=tenant_id,
         supplier_id=order_in.supplier_id,
+        cd_id=order_in.cd_id,
         status=order_in.status,
         total_amount=order_in.total_amount,
         notes=order_in.notes
@@ -118,6 +119,20 @@ async def update_purchase_order(
     
     update_data = order_in.model_dump(exclude_unset=True)
     
+    # Validação de Versão para Controle de Concorrência Otimista (OCC)
+    if 'version' in update_data:
+        client_version = update_data.pop('version')
+        if client_version != order.version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Conflito de versão detectado. A ordem de compra foi modificada por outro usuário.",
+                    "current_state": old_data
+                }
+            )
+            
+    order.version += 1
+    
     try:
         for key, value in update_data.items():
             setattr(order, key, value)
@@ -137,30 +152,42 @@ async def update_purchase_order(
             new_data=new_data
         )
              
-        # Gatilho: Se o status mudou para COMPLETED, processa a entrada no estoque
-        if previous_status != "COMPLETED" and order.status == "COMPLETED":
+        # Gatilho: Se o status mudou para RECEIVED, processa a entrada no estoque no CD destino
+        if previous_status != "RECEIVED" and order.status == "RECEIVED":
+            if not order.cd_id:
+                raise ValueError("Não é possível receber a ordem sem um Centro de Distribuição (CD) de destino definido.")
+                
             for item in order.items:
-                # 1. Busca o produto
-                prod_query = select(Product).where(Product.id == item.product_id, Product.tenant_id == tenant_id)
+                # 1. Busca o produto (Garantindo que é do tenant, o CD pode não estar setado no produto mestre ainda)
+                prod_query = select(Product).where(Product.id == item.product_id, Product.tenant_id == tenant_id).with_for_update()
                 prod_result = await db.execute(prod_query)
                 product = prod_result.scalar_one_or_none()
                 
                 if not product:
                     raise ValueError(f"Produto {item.product_id} não encontrado para entrada no estoque.")
+                    
+                # Se o produto não tiver CD definido, ou se estiver num CD diferente, precisamos ajustar a lógica.
+                # Para simplificar na versão atual, vamos criar a transação IN amarrada ao produto.
+                # Idealmente o produto deveria estar amarrado ao CD da ordem, ou deveria haver um clone.
+                # Vamos assumir que a transação entra no CD da ordem e o produto passa a pertencer a esse CD se for órfão.
+                if not product.cd_id:
+                    product.cd_id = order.cd_id
 
-                # 2. Cria a transação de IN (Entrada)
+                # 2. Cria a transação de IN (Entrada) amarrada ao produto
                 transaction = InventoryTransaction(
                     tenant_id=tenant_id,
                     product_id=product.id,
                     type="IN",
                     quantity=int(item.quantity), # Estoque geralmente é int na nossa regra atual
                     unit_cost=item.unit_price,
-                    unit_price=product.price # Mantém o preço de venda atual do produto
+                    unit_price=product.price, # Mantém o preço de venda atual do produto
+                    notes=f"Recebimento da Ordem de Compra {order.id} no CD {order.cd_id}"
                 )
                 db.add(transaction)
                 
                 # 3. Atualiza o estoque atual do produto
                 product.current_stock += int(item.quantity)
+                product.version += 1
 
         await db.commit()
         await db.refresh(order)
