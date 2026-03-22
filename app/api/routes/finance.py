@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text, Date, cast
 from uuid import UUID
 from datetime import datetime, timedelta
 
-from app.core.deps import get_db, get_tenant_id
+from app.core.deps import get_db, get_tenant_id, get_current_user
 from app.models.transaction import InventoryTransaction
+from app.models.user import User
 from app.schemas.finance import FinanceSummary, DailyFinance
 
 router = APIRouter()
@@ -13,8 +14,17 @@ router = APIRouter()
 @router.get("/summary", response_model=FinanceSummary)
 async def get_finance_summary(
     tenant_id: UUID = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
+    # Proteção RBAC: Apenas roles financeiras e gerenciais
+    allowed_roles = ['ADMIN', 'MANAGER', 'FINANCIAL', 'AUDITOR']
+    if current_user.role not in allowed_roles:
+        raise HTTPException(
+            status_code=403, 
+            detail="Acesso Negado. Seu perfil não tem permissão para visualizar o Dashboard Financeiro."
+        )
+
     """
     Retorna um resumo financeiro baseado nas transações de SAÍDA (OUT) dos últimos 30 dias.
     """

@@ -14,7 +14,7 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     
-    # RBAC: ADMIN, MANAGER, OPERATOR
+    # RBAC: ADMIN, MANAGER, OPERATOR, SALES, FINANCIAL, DRIVER, AUDITOR
     role = Column(String(50), nullable=False, default="OPERATOR")
     
     is_active = Column(Boolean, default=True)

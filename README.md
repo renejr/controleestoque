@@ -8,12 +8,12 @@ Este projeto é dividido em um poderoso **Backend em Python (FastAPI)** e um apl
 
 ## 🚀 Principais Recursos
 
-- 🔐 **Multi-Tenant (SaaS) e RBAC:** Isolamento total de dados entre diferentes empresas/clientes usando PostgreSQL e UUID. Controle de acesso rigoroso por Perfis de Usuário (ADMIN, MANAGER, OPERATOR).
+- 🔐 **Multi-Tenant (SaaS) e RBAC Avançado:** Isolamento total de dados entre diferentes empresas/clientes usando PostgreSQL e UUID. Controle de acesso rigoroso por 7 Perfis de Usuário (ADMIN, MANAGER, OPERATOR, SALES, FINANCIAL, DRIVER, AUDITOR), com visibilidade de UI e proteção de rotas API baseadas em funções.
 - 📦 **Catálogo de Produtos:** Cadastro completo com regras logísticas (SKU, Código de Barras, Peso, Dimensões e Estoque Mínimo), classificação fiscal brasileira e motor de **Importação em Lote via CSV** com validação inteligente (Dry-Run).
-- 💸 **Módulo Financeiro e Vendas:** Análise de Receita, Custo e Lucro Líquido gerados automaticamente a partir das movimentações de estoque. Módulo de Pedidos de Venda com baixa atômica de estoque.
+- 💸 **Módulo Financeiro e Vendas:** Análise de Receita, Custo (CMV) e Lucro Líquido gerados automaticamente a partir das movimentações de estoque. Módulo de Pedidos de Venda com baixa atômica de estoque. Dashboard executivo na tela inicial com gráficos vetoriais diários (`fl_chart`).
 - 🚚 **Gestão de Compras e Fornecedores:** Controle centralizado de parceiros, fluxo de Ordens de Compra com **gatilho automático de entrada em estoque** e geração de **Documentos PDF Profissionais**.
 - 💬 **Chat Corporativo em Tempo Real:** Comunicação instantânea via WebSockets entre os membros da equipe de cada empresa, com notificações e isolamento estrito.
-- 🚛 **Gestão de Frota e Logística (TMS):** Cadastro de veículos, Roteirização otimizada via OpenStreetMap (OSRM) e um poderoso motor de **Bin Packing 3D** (Cubagem) com **Simulador de Carga Visual em Flutter** (Planta Baixa 2D inteligente, legendas de agrupamento e indicadores de empilhamento).
+- 🚛 **Gestão de Frota e Logística (TMS):** Cadastro de veículos, Roteirização otimizada via OpenStreetMap (OSRM) e um poderoso motor de **Bin Packing 3D** (Cubagem) com **Simulador de Carga Visual em Flutter** (Planta Baixa 2D inteligente, legendas de agrupamento e indicadores de empilhamento). Exportação nativa de **Romaneios Táticos em PDF** (`reportlab`).
 - 🗺️ **Roteirização Otimizada (OSRM + OR-Tools):** Cálculo da rota de entrega mais rápida utilizando dados reais de ruas e trânsito (OSRM) resolvidos via Google OR-Tools. Exibição interativa no app utilizando **OpenStreetMap** 100% gratuito (sem API Keys).
 - 🏛️ **Configurações Fiscais e Integrações:** Gestão de Razão Social, CNPJ, Inscrição Estadual, Certificado Digital. Webhooks nativos para provisionamento de empresas via gateways de pagamento externos.
 - 🕵️ **Caixa Preta (Auditoria):** Sistema de logs invisível que rastreia alterações críticas (INSERT, UPDATE, DELETE) em tempo real, permitindo aos administradores inspecionarem o "Antes e Depois" de cada registro através de um painel de visualização de JSON. Inclui rotas globais para Super Admins do sistema.

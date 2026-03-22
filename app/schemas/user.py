@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr, Field
 class UserBase(BaseModel):
     name: Optional[str] = None
     email: EmailStr
-    role: str = Field(default="OPERATOR", description="ADMIN, MANAGER, or OPERATOR")
+    role: str = Field(default="OPERATOR", description="ADMIN, MANAGER, OPERATOR, SALES, FINANCIAL, DRIVER, AUDITOR")
     is_active: Optional[bool] = True
 
 class UserCreate(UserBase):

@@ -84,8 +84,9 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "ADMIN":
-        raise HTTPException(status_code=403, detail="Apenas administradores podem editar usuários.")
+    # Proteção: Apenas ADMIN pode alterar usuários que não sejam eles mesmos
+    if current_user.role != "ADMIN" and current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Você só pode editar seu próprio perfil.")
 
     query = select(User).where(User.id == user_id, User.tenant_id == current_user.tenant_id)
     result = await db.execute(query)
@@ -106,10 +107,14 @@ async def update_user(
 
     if user_in.name is not None:
         user.name = user_in.name
-    if user_in.role is not None:
-        user.role = user_in.role
-    if user_in.is_active is not None:
-        user.is_active = user_in.is_active
+        
+    # Proteção RBAC: Bloqueia escalada de privilégios ou desativação por não-admins
+    if current_user.role == "ADMIN":
+        if user_in.role is not None:
+            user.role = user_in.role
+        if user_in.is_active is not None:
+            user.is_active = user_in.is_active
+
     if user_in.password:
         user.hashed_password = get_password_hash(user_in.password)
 
