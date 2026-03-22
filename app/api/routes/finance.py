@@ -8,6 +8,8 @@ import httpx
 from app.core.deps import get_db, get_tenant_id, get_current_user
 from app.models.transaction import InventoryTransaction
 from app.models.tenant_setting import TenantSetting
+from app.models.product import Product
+from app.models.distribution_center import DistributionCenter
 from app.models.user import User
 from app.schemas.finance import FinanceSummary, DailyFinance
 
@@ -175,3 +177,50 @@ async def get_finance_insights(
                 return {"insight": "O Oráculo Financeiro está temporariamente indisponível."}
     except Exception as e:
         return {"insight": f"Não foi possível conectar ao motor de IA. Detalhe: {str(e)}"}
+
+@router.get("/valuation-by-cd")
+async def get_valuation_by_cd(
+    tenant_id: UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Retorna o valor total de inventário (current_stock * cost_price) 
+    agrupado por Centro de Distribuição.
+    """
+    # Proteção RBAC: Apenas roles financeiras e gerenciais
+    allowed_roles = ['ADMIN', 'MANAGER', 'FINANCIAL']
+    if current_user.role not in allowed_roles:
+        raise HTTPException(
+            status_code=403, 
+            detail="Acesso Negado. Seu perfil não tem permissão para visualizar a Valorização por CD."
+        )
+
+    # Agrupar por CD, usando LEFT OUTER JOIN para não perder os órfãos
+    query = select(
+        DistributionCenter.name.label('cd_name'),
+        func.sum(Product.current_stock).label('total_items'),
+        func.sum(Product.current_stock * Product.cost_price).label('total_value')
+    ).outerjoin(
+        DistributionCenter, Product.cd_id == DistributionCenter.id
+    ).where(
+        Product.tenant_id == tenant_id
+    ).group_by(
+        DistributionCenter.name
+    )
+
+    result = await db.execute(query)
+    
+    valuation_data = []
+    for row in result:
+        cd_name = row.cd_name if row.cd_name else "Sem CD Vinculado (Órfãos)"
+        valuation_data.append({
+            "cd_name": cd_name,
+            "total_items": int(row.total_items or 0),
+            "total_value": float(row.total_value or 0.0)
+        })
+
+    # Ordena pelo maior valor primeiro
+    valuation_data.sort(key=lambda x: x['total_value'], reverse=True)
+
+    return valuation_data
