@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey
+from sqlalchemy import Column, String, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
@@ -15,3 +15,7 @@ class DistributionCenter(Base):
     city = Column(String(100), nullable=False)
     state = Column(String(2), nullable=False)
     zip_code = Column(String(20), nullable=False)
+    
+    # Versionamento para OCC
+    version = Column(Integer, default=1, nullable=False)
+

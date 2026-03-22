@@ -109,6 +109,18 @@ async def update_sales_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Pedido não encontrado.")
         
+    # Validação de Versão para Controle de Concorrência Otimista (OCC)
+    if status_update.version is not None:
+        if status_update.version != order.version:
+            current_state = {"status": order.status, "version": order.version}
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Conflito de versão detectado. O pedido foi modificado por outro usuário.",
+                    "current_state": current_state
+                }
+            )
+
     old_status = order.status
     new_status = status_update.status
     
@@ -116,6 +128,7 @@ async def update_sales_order_status(
         return order
         
     order.status = new_status
+    order.version += 1
     
     # Se o pedido foi marcado como SHIPPED (enviado), precisamos dar baixa no estoque
     if new_status == "SHIPPED":

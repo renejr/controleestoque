@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Numeric, ForeignKey, DateTime
+from sqlalchemy import Column, String, Numeric, ForeignKey, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -19,5 +19,8 @@ class SalesOrder(Base):
     notes = Column(String, nullable=True)
     
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    # Versionamento para OCC
+    version = Column(Integer, default=1, nullable=False)
 
     items = relationship("SalesOrderItem", back_populates="sales_order", cascade="all, delete-orphan")

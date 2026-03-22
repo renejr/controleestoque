@@ -148,6 +148,23 @@ async def update_product(
 
     update_data = product_in.model_dump(exclude_unset=True)
     
+    # Validação de Versão para Controle de Concorrência Otimista (OCC)
+    if 'version' in update_data:
+        client_version = update_data.pop('version')
+        if client_version != product.version:
+            # Captura o estado atual para o cliente resolver o conflito
+            current_state = {c.name: getattr(product, c.name) for c in product.__table__.columns if c.name != 'embedding'}
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Conflito de versão detectado. O registro foi modificado por outro usuário/processo.",
+                    "current_state": current_state
+                }
+            )
+    
+    # Incrementa a versão automaticamente no backend
+    product.version += 1
+    
     # Se houver alteração de nome ou descrição, recalcula o embedding
     if 'name' in update_data or 'description' in update_data:
         new_name = update_data.get('name', product.name)

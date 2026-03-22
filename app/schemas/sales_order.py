@@ -27,6 +27,7 @@ class SalesOrderCreate(SalesOrderBase):
 
 class SalesOrderStatusUpdate(BaseModel):
     status: str = Field(..., description="Novo status do pedido (ex: CONFIRMED, SHIPPED, DELIVERED, CANCELLED)")
+    version: Optional[int] = None
 
 class SalesOrderResponse(SalesOrderBase):
     id: UUID
@@ -35,5 +36,6 @@ class SalesOrderResponse(SalesOrderBase):
     total_amount: float
     created_at: datetime
     items: List[SalesOrderItemResponse] = []
+    version: int
 
     model_config = {"from_attributes": True}

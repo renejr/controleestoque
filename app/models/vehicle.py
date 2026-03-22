@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Float, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
@@ -25,6 +25,9 @@ class Vehicle(Base):
 
     # Vínculo com Centro de Distribuição (Base / Ponto 0)
     cd_id = Column(UUID(as_uuid=True), ForeignKey('distribution_centers.id', ondelete="SET NULL"), nullable=True)
+
+    # Versionamento para OCC
+    version = Column(Integer, default=1, nullable=False)
 
     __table_args__ = (
         UniqueConstraint('tenant_id', 'license_plate', name='uq_tenant_license_plate'),

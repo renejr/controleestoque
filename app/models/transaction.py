@@ -15,3 +15,6 @@ class InventoryTransaction(Base):
     unit_price = Column(Numeric(10, 2), nullable=False, server_default='0.00')
     unit_cost = Column(Numeric(10, 2), nullable=False, server_default='0.00')
     date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Versionamento para OCC
+    version = Column(Integer, default=1, nullable=False)

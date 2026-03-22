@@ -58,6 +58,21 @@ async def update_distribution_center(
         raise HTTPException(status_code=404, detail="Centro de Distribuição não encontrado.")
         
     update_data = cd_in.model_dump(exclude_unset=True)
+    
+    if 'version' in update_data:
+        client_version = update_data.pop('version')
+        if client_version != cd.version:
+            current_state = {c.name: getattr(cd, c.name) for c in cd.__table__.columns}
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Conflito de versão detectado. O CD foi modificado por outro usuário.",
+                    "current_state": current_state
+                }
+            )
+            
+    cd.version += 1
+    
     for key, value in update_data.items():
         setattr(cd, key, value)
         

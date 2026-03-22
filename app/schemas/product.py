@@ -44,12 +44,14 @@ class ProductUpdate(BaseModel):
     cest: Optional[str] = Field(None, max_length=7)
     origin: Optional[int] = Field(None, ge=0)
     embedding: Optional[List[float]] = Field(None, max_length=384, min_length=384)
+    version: Optional[int] = None
 
 class ProductResponse(ProductBase):
     id: UUID
     tenant_id: UUID
     created_at: datetime
     profit_margin: Optional[float] = None
+    version: int
 
     model_config = {"from_attributes": True}
     

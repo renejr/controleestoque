@@ -26,9 +26,11 @@ class VehicleUpdate(BaseModel):
     compartment_height: Optional[float] = Field(None, gt=0)
     compartment_length: Optional[float] = Field(None, gt=0)
     cd_id: Optional[UUID] = Field(None)
+    version: Optional[int] = None
 
 class VehicleResponse(VehicleBase):
     id: UUID
     tenant_id: UUID
+    version: int
 
     model_config = {"from_attributes": True}

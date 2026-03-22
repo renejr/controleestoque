@@ -32,3 +32,6 @@ class Product(Base):
     origin = Column(Integer, nullable=True, default=0)
     embedding = Column(Vector(384), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Versionamento para Controle de Concorrência Otimista (OCC)
+    version = Column(Integer, default=1, nullable=False)

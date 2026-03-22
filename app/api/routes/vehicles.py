@@ -87,6 +87,20 @@ async def update_vehicle(
     old_data = {c.name: getattr(vehicle, c.name) for c in vehicle.__table__.columns}
 
     update_data = vehicle_in.model_dump(exclude_unset=True)
+    
+    if 'version' in update_data:
+        client_version = update_data.pop('version')
+        if client_version != vehicle.version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Conflito de versão detectado. O veículo foi modificado por outro usuário.",
+                    "current_state": old_data
+                }
+            )
+            
+    vehicle.version += 1
+    
     for key, value in update_data.items():
         setattr(vehicle, key, value)
 

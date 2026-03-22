@@ -18,10 +18,12 @@ class DistributionCenterUpdate(BaseModel):
     city: Optional[str] = None
     state: Optional[str] = None
     zip_code: Optional[str] = None
+    version: Optional[int] = None
 
 class DistributionCenterResponse(DistributionCenterBase):
     id: UUID
     tenant_id: UUID
+    version: int
 
     class Config:
         from_attributes = True
