@@ -4,8 +4,10 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle
+from reportlab.lib.utils import ImageReader
+import requests
 
-def generate_manifest_pdf(manifest_data: dict, vehicle_data: dict) -> bytes:
+def generate_manifest_pdf(manifest_data: dict, vehicle_data: dict, tenant_settings: dict = None) -> bytes:
     """
     Gera o PDF do Romaneio de Entrega com Planta Baixa e Checklist.
     Retorna os bytes do PDF gerado.
@@ -21,9 +23,34 @@ def generate_manifest_pdf(manifest_data: dict, vehicle_data: dict) -> bytes:
         colors.darkred, colors.darkblue
     ]
 
-    # --- Cabeçalho ---
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(50, height - 50, "ROMANEIO DE CARGA E ENTREGA TÁTICO")
+    # --- Cabeçalho Dinâmico (Branding) ---
+    header_y = height - 50
+    company_name = "ROMANEIO DE CARGA E ENTREGA TÁTICO"
+    
+    if tenant_settings:
+        if tenant_settings.get('company_name'):
+            company_name = f"{tenant_settings['company_name']} - ROMANEIO TÁTICO"
+        
+        # Tenta carregar e desenhar a logo
+        logo_url = tenant_settings.get('logo_url')
+        if logo_url:
+            try:
+                response = requests.get(logo_url, timeout=3)
+                if response.status_code == 200:
+                    img = ImageReader(io.BytesIO(response.content))
+                    # Desenha a logo no canto superior esquerdo
+                    c.drawImage(img, 50, height - 60, width=50, height=50, preserveAspectRatio=True, mask='auto')
+                    # Desloca os textos para não sobrepor a logo
+                    c.translate(60, 0)
+            except Exception:
+                pass # Se falhar, segue sem logo
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, header_y, company_name)
+    
+    # Restaura a tradução se a logo foi desenhada
+    if tenant_settings and tenant_settings.get('logo_url'):
+        c.translate(-60, 0)
     
     c.setFont("Helvetica", 12)
     c.drawString(50, height - 75, f"Data/Hora: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")

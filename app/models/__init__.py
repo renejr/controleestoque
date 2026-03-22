@@ -17,10 +17,12 @@ from app.models.nfe_document import NfeDocument
 from app.models.message import ChatMessage
 from app.models.help import HelpArticle, ChatbotLog
 from app.models.distribution_center import DistributionCenter
+from app.models.tenant_setting import TenantSetting
 
 __all__ = [
     "Base", "Tenant", "User", "Product", "InventoryTransaction", 
     "AIInsight", "Supplier", "PurchaseOrder", "PurchaseOrderItem", 
     "AuditLog", "Vehicle", "Customer", "SalesOrder", "SalesOrderItem", "Suggestion",
-    "NfeDocument", "ChatMessage", "HelpArticle", "ChatbotLog", "DistributionCenter"
+    "NfeDocument", "ChatMessage", "HelpArticle", "ChatbotLog", "DistributionCenter",
+    "TenantSetting"
 ]

@@ -12,6 +12,7 @@ from app.models.product import Product
 from app.models.sales_order import SalesOrder
 from app.models.sales_order_item import SalesOrderItem
 from app.models.distribution_center import DistributionCenter
+from app.models.tenant_setting import TenantSetting
 from app.schemas.fleet import PackOrderRequest
 from app.services.logistics_service import calculate_packing  # <--- CORREÇÃO AQUI: Importando do arquivo certo!
 from app.services.routing_service import calculate_route
@@ -175,17 +176,30 @@ async def optimize_fleet_route(
 async def download_manifest_pdf(
     romaneio_id: str,
     payload: dict, # Recebe os dados de packing e routing via body temporariamente
-    tenant_id: UUID = Depends(get_tenant_id)
+    tenant_id: UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Gera o PDF Tático de Romaneio com Planta Baixa e Checklist.
     """
     try:
+        # Busca as configurações do tenant para branding
+        query_settings = select(TenantSetting).where(TenantSetting.tenant_id == tenant_id)
+        result_settings = await db.execute(query_settings)
+        settings = result_settings.scalars().first()
+        
+        tenant_settings_dict = {}
+        if settings:
+            tenant_settings_dict = {
+                'company_name': settings.company_name,
+                'logo_url': settings.logo_url
+            }
+
         vehicle_data = payload.get("vehicle", {})
         manifest_data = payload.get("manifest", {})
         manifest_data['romaneio_id'] = romaneio_id
         
-        pdf_bytes = generate_manifest_pdf(manifest_data, vehicle_data)
+        pdf_bytes = generate_manifest_pdf(manifest_data, vehicle_data, tenant_settings_dict)
         
         return Response(
             content=pdf_bytes,

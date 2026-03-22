@@ -7,6 +7,7 @@ import httpx
 
 from app.core.deps import get_db, get_tenant_id, get_current_user
 from app.models.transaction import InventoryTransaction
+from app.models.tenant_setting import TenantSetting
 from app.models.user import User
 from app.schemas.finance import FinanceSummary, DailyFinance
 
@@ -119,9 +120,24 @@ async def get_finance_insights(
     profit = revenue - cost
     margin = (profit / revenue * 100) if revenue > 0 else 0.0
 
-    # 2. Construir o Prompt para o Ollama
+    # 2. Busca o Perfil do Oráculo nas Configurações do Tenant
+    query_settings = select(TenantSetting).where(TenantSetting.tenant_id == tenant_id)
+    result_settings = await db.execute(query_settings)
+    settings = result_settings.scalars().first()
+    ai_tone = settings.ai_tone if settings else "NEUTRAL"
+
+    tone_instructions = {
+        "CONSERVATIVE": "Seja extremamente conservador, priorize o corte de custos e proteção de caixa antes de qualquer expansão.",
+        "AGGRESSIVE": "Seja arrojado, sugira reinvestir lucros agressivamente em marketing, compras em volume para baixar CMV e expansão de mercado.",
+        "NEUTRAL": "Seja equilibrado, analise de forma técnica e sugira otimizações moderadas de processo."
+    }
+    
+    selected_tone_instruction = tone_instructions.get(ai_tone, tone_instructions["NEUTRAL"])
+
+    # 3. Construir o Prompt para o Ollama
     system_prompt = (
         "Você é o CFO (Diretor Financeiro) de uma empresa de varejo. "
+        f"{selected_tone_instruction} "
         "Analise os indicadores financeiros do mês atual e forneça um insight "
         "direto, executivo e acionável. Seja extremamente conciso, use no máximo 2 frases. "
         "Não cumprimente, vá direto ao ponto."
@@ -134,7 +150,7 @@ async def get_finance_insights(
         f"Margem de Lucro {margin:.1f}%."
     )
 
-    # 3. Chamar o Ollama Local
+    # 4. Chamar o Ollama Local
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
