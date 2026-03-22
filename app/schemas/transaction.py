@@ -10,7 +10,14 @@ class TransactionBase(BaseModel):
     type: Literal['IN', 'OUT'] = Field(..., description="Tipo de movimentação: 'IN' (Entrada) ou 'OUT' (Saída)")
 
 class TransactionCreate(TransactionBase):
-    pass
+    notes: Optional[str] = None
+
+class StockTransferRequest(BaseModel):
+    product_id: UUID
+    source_cd_id: UUID
+    destination_cd_id: UUID
+    quantity: int
+    notes: Optional[str] = "Transferência entre CDs"
 
 class TransactionResponse(TransactionBase):
     id: UUID
