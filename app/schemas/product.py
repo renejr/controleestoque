@@ -22,6 +22,7 @@ class ProductBase(BaseModel):
     cest: Optional[str] = Field(None, max_length=7)
     origin: Optional[int] = Field(0, ge=0)
     embedding: Optional[List[float]] = Field(None, max_length=384, min_length=384)
+    cd_id: Optional[UUID] = None
 
 class ProductCreate(ProductBase):
     pass
@@ -44,6 +45,7 @@ class ProductUpdate(BaseModel):
     cest: Optional[str] = Field(None, max_length=7)
     origin: Optional[int] = Field(None, ge=0)
     embedding: Optional[List[float]] = Field(None, max_length=384, min_length=384)
+    cd_id: Optional[UUID] = None
     version: Optional[int] = None
 
 class ProductResponse(ProductBase):
