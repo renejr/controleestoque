@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 class PackOrderItem(BaseModel):
@@ -8,4 +8,5 @@ class PackOrderItem(BaseModel):
 
 class PackOrderRequest(BaseModel):
     vehicle_id: UUID
-    items: List[PackOrderItem] = Field(..., min_length=1, description="Lista de produtos a serem embarcados")
+    sales_orders_ids: Optional[List[UUID]] = Field(default=None, description="Lista de IDs de pedidos para carregar todos os itens")
+    items: Optional[List[PackOrderItem]] = Field(default=None, description="Lista manual de produtos (se não usar sales_orders_ids)")

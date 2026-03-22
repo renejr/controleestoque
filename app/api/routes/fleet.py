@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from uuid import UUID
 import json
 
@@ -9,6 +10,7 @@ from app.core.deps import get_db, get_tenant_id
 from app.models.vehicle import Vehicle
 from app.models.product import Product
 from app.models.sales_order import SalesOrder
+from app.models.sales_order_item import SalesOrderItem
 from app.models.distribution_center import DistributionCenter
 from app.schemas.fleet import PackOrderRequest
 from app.services.logistics_service import calculate_packing  # <--- CORREÇÃO AQUI: Importando do arquivo certo!
@@ -25,6 +27,7 @@ async def simulate_pack_order(
 ):
     """
     Simula o carregamento (Bin Packing) de uma lista de produtos dentro de um veículo específico.
+    Suporta carregamento via múltiplos pedidos de venda (sales_orders_ids) ou lista manual de itens.
     """
     
     # 1. Busca o Veículo garantindo que pertence ao Tenant atual
@@ -35,27 +38,63 @@ async def simulate_pack_order(
     if not vehicle:
         raise HTTPException(status_code=404, detail="Veículo não encontrado ou não pertence à sua frota.")
 
-    # 2. Busca e Valida os Produtos
     products_to_pack = []
-    
-    for req_item in request_data.items:
-        query_product = select(Product).where(Product.id == req_item.product_id, Product.tenant_id == tenant_id)
-        result_product = await db.execute(query_product)
-        product = result_product.scalars().first()
-        
-        if not product:
-            raise HTTPException(status_code=404, detail=f"Produto {req_item.product_id} não encontrado.")
+
+    # Se recebeu lista de pedidos, extrai os itens deles
+    if request_data.sales_orders_ids:
+        query_orders = select(SalesOrder).options(
+            selectinload(SalesOrder.items).selectinload(SalesOrderItem.product)
+        ).where(
+            SalesOrder.id.in_(request_data.sales_orders_ids),
+            SalesOrder.tenant_id == tenant_id
+        )
+        result_orders = await db.execute(query_orders)
+        orders = result_orders.scalars().all()
+
+        if not orders:
+            raise HTTPException(status_code=404, detail="Nenhum pedido encontrado com os IDs fornecidos.")
+
+        for order in orders:
+            for item in order.items:
+                product = item.product
+                if not product:
+                    continue
+                # Adiciona a quantidade de itens solicitada no pedido
+                for _ in range(item.quantity):
+                    products_to_pack.append({
+                        "id": str(product.id),
+                        "name": product.name,
+                        "width": product.width,
+                        "height": product.height,
+                        "length": product.length,
+                        "weight": product.weight
+                    })
+
+    # Fallback para itens manuais (se fornecidos no payload)
+    elif request_data.items:
+        for req_item in request_data.items:
+            query_product = select(Product).where(Product.id == req_item.product_id, Product.tenant_id == tenant_id)
+            result_product = await db.execute(query_product)
+            product = result_product.scalars().first()
             
-        # Adiciona a quantidade de itens solicitada
-        for _ in range(req_item.quantity):
-            products_to_pack.append({
-                "id": str(product.id),
-                "name": product.name,
-                "width": product.width,
-                "height": product.height,
-                "length": product.length,
-                "weight": product.weight
-            })
+            if not product:
+                raise HTTPException(status_code=404, detail=f"Produto {req_item.product_id} não encontrado.")
+                
+            # Adiciona a quantidade de itens solicitada
+            for _ in range(req_item.quantity):
+                products_to_pack.append({
+                    "id": str(product.id),
+                    "name": product.name,
+                    "width": product.width,
+                    "height": product.height,
+                    "length": product.length,
+                    "weight": product.weight
+                })
+    else:
+        raise HTTPException(status_code=400, detail="É necessário informar sales_orders_ids ou items.")
+
+    if not products_to_pack:
+         raise HTTPException(status_code=400, detail="Nenhum produto válido encontrado para cubagem.")
 
     # 3. Executa o Motor de Cubagem
     try:
