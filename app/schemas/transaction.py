@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Literal
+from typing import Literal, Optional
 from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
