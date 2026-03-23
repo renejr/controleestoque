@@ -43,8 +43,11 @@ async def simulate_pack_order(
 
     # Se recebeu lista de pedidos, extrai os itens deles
     if request_data.sales_orders_ids:
+        # Carrega o relacionamento 'items' do SalesOrder, mas o SalesOrderItem não tem back_populates pro 'product' definido assim
+        # Ele tem apenas product_id. Vamos buscar os produtos separados ou ajustar a query.
+        # Já que não temos relationship('Product') no SalesOrderItem, vamos carregar só os items aqui e buscar produtos depois
         query_orders = select(SalesOrder).options(
-            selectinload(SalesOrder.items).selectinload(SalesOrderItem.product)
+            selectinload(SalesOrder.items)
         ).where(
             SalesOrder.id.in_(request_data.sales_orders_ids),
             SalesOrder.tenant_id == tenant_id
@@ -55,11 +58,23 @@ async def simulate_pack_order(
         if not orders:
             raise HTTPException(status_code=404, detail="Nenhum pedido encontrado com os IDs fornecidos.")
 
+        # Coleta os IDs de produtos necessários
+        product_ids = set()
         for order in orders:
             for item in order.items:
-                product = item.product
+                product_ids.add(item.product_id)
+                
+        # Busca todos os produtos de uma vez
+        query_products = select(Product).where(Product.id.in_(product_ids), Product.tenant_id == tenant_id)
+        result_products = await db.execute(query_products)
+        products_dict = {p.id: p for p in result_products.scalars().all()}
+
+        for order in orders:
+            for item in order.items:
+                product = products_dict.get(item.product_id)
                 if not product:
                     continue
+                    
                 # Adiciona a quantidade de itens solicitada no pedido
                 for _ in range(item.quantity):
                     products_to_pack.append({
@@ -112,7 +127,7 @@ async def optimize_fleet_route(
     tenant_id: UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db)
 ):
-    query_orders = select(SalesOrder).where(SalesOrder.id.in_(sales_orders_ids), SalesOrder.tenant_id == tenant_id)
+    query_orders = select(SalesOrder).options(selectinload(SalesOrder.customer)).where(SalesOrder.id.in_(sales_orders_ids), SalesOrder.tenant_id == tenant_id)
     result_orders = await db.execute(query_orders)
     sales_orders = result_orders.scalars().all()
 
@@ -138,10 +153,17 @@ async def optimize_fleet_route(
     addresses = [ponto_zero] # Ponto 0 dinâmico
 
     for order in sales_orders:
-        address = getattr(order, 'shipping_address', None)
-        if not address:
+        # Tenta pegar o endereço do Customer
+        address = None
+        if hasattr(order, 'customer') and order.customer:
+            c = order.customer
+            # Formato rigoroso para o geopy/nominatim achar mais fácil
+            address = f"{c.street}, {c.number}, {c.city}, {c.state}, {c.zip_code}, Brazil"
+        
+        if not address or address.strip() == ", , , , , Brazil":
             # Fallback mockado para evitar que a API do OSRM quebre se o endereço estiver vazio
-            address = f"Rua {order.id}, São Paulo, SP" 
+            # Vamos usar um endereço válido no Centro de SP para fallback
+            address = f"Praça da Sé, São Paulo, SP, 01001-000, Brazil" 
         addresses.append(address)
 
     try:
@@ -166,7 +188,9 @@ async def optimize_fleet_route(
             "romaneio_id": romaneio_id,
             "optimized_orders": optimized_sequence,
             "total_distance_km": routing_result["total_distance_km"],
-            "total_eta_minutes": routing_result["total_eta_minutes"]
+            "total_eta_minutes": routing_result["total_eta_minutes"],
+            "geometry": routing_result.get("geometry", {}),
+            "steps": routing_result.get("steps", [])
         }
         
     except Exception as e:

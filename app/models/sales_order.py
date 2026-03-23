@@ -23,4 +23,5 @@ class SalesOrder(Base):
     # Versionamento para OCC
     version = Column(Integer, default=1, nullable=False)
 
+    customer = relationship("Customer")
     items = relationship("SalesOrderItem", back_populates="sales_order", cascade="all, delete-orphan")

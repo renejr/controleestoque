@@ -72,37 +72,56 @@ async def get_chat_history(
 async def websocket_endpoint(websocket: WebSocket, token: str):
     """
     Endpoint de WebSocket para o Chat em Tempo Real.
-    Requer o JWT token na URL para autenticação.
     """
-    # 1. Autenticação via Token
+    # 1. ACEITAÇÃO PRIMEIRO: O FastAPI precisa aceitar o handshake antes de processar.
+    await websocket.accept()
+
+    # 2. Autenticação via Token
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        # Remover o prefixo 'Bearer ' se o Flutter estiver enviando por engano na URL
+        clean_token = token.replace("Bearer ", "") if token.startswith("Bearer ") else token
+        
+        payload = jwt.decode(clean_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = payload.get("sub")
         tenant_id = payload.get("tenant_id")
+        
         if user_id is None or tenant_id is None:
+            print("❌ [WebSocket] Conexão Rejeitada: 'sub' ou 'tenant_id' ausentes no token.")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-    except PyJWTError:
+            
+    except PyJWTError as e:
+        print(f"❌ [WebSocket] Conexão Rejeitada: Falha na validação do JWT. Motivo: {str(e)}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
+    except Exception as e:
+        print(f"❌ [WebSocket] Erro inesperado na autenticação: {str(e)}")
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        return
 
-    # 2. Conexão
+    # 3. Conexão Segura
+    print(f"✅ [WebSocket] Usuário {user_id} autenticado com sucesso.")
+    
+    # ATENÇÃO AGENTE: Certifique-se de que a função manager.connect() não está chamando
+    # 'await websocket.accept()' novamente, pois já fizemos isso acima.
     await manager.connect(websocket, tenant_id, user_id)
     
-    # Criamos uma sessão de banco de dados para este WebSocket
     db: AsyncSession = SessionLocal()
 
     try:
-        # 3. Loop de recebimento de mensagens
+        # Loop de recebimento de mensagens
         while True:
             data_text = await websocket.receive_text()
             data = json.loads(data_text)
+            
+            if data.get("type") == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
+                continue
             
             receiver_id = data.get("receiver_id")
             content = data.get("content")
             
             if receiver_id and content:
-                # Salva a mensagem no banco
                 new_message = ChatMessage(
                     tenant_id=UUID(tenant_id),
                     sender_id=UUID(user_id),
@@ -113,7 +132,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 await db.commit()
                 await db.refresh(new_message)
                 
-                # Monta o payload para enviar ao destinatário
                 message_payload = {
                     "id": str(new_message.id),
                     "sender_id": user_id,
@@ -122,10 +140,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                     "created_at": new_message.created_at.isoformat()
                 }
                 
-                # Envia se o destinatário estiver online
                 await manager.send_personal_message(message_payload, tenant_id, receiver_id)
                 
     except WebSocketDisconnect:
+        print(f"⚠️ [WebSocket] Usuário {user_id} desconectado.")
         manager.disconnect(tenant_id, user_id)
     finally:
         await db.close()

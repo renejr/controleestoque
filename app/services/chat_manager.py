@@ -7,7 +7,7 @@ class ConnectionManager:
         self.active_connections: Dict[str, Dict[str, WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, tenant_id: str, user_id: str):
-        await websocket.accept()
+        # O handshake (await websocket.accept()) agora é feito na rota antes da validação JWT
         if tenant_id not in self.active_connections:
             self.active_connections[tenant_id] = {}
         self.active_connections[tenant_id][user_id] = websocket

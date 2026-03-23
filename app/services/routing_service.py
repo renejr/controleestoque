@@ -5,10 +5,40 @@ from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
+import time
 
 # Simple in-memory cache for geocoding to avoid hitting Nominatim limits and speed up requests
 _GEOCODE_CACHE: Dict[str, Tuple[float, float]] = {}
-geolocator = Nominatim(user_agent="gestao_estoque_saas_router")
+geolocator = Nominatim(user_agent="gestao_estoque_saas_router_v2")
+
+def get_coordinates_from_address(address_text: str) -> Tuple[float, float]:
+    """
+    Usa o Nominatim (OpenStreetMap) para buscar a lat/lon de um endereço em texto.
+    Retorna (lat, lon) ou None se não encontrar.
+    """
+    if not address_text:
+        return None
+        
+    # Verifica cache
+    cache_key = address_text.lower().strip()
+    if cache_key in _GEOCODE_CACHE:
+        return _GEOCODE_CACHE[cache_key]
+        
+    try:
+        # Rate limit do Nominatim (1 req/sec)
+        time.sleep(1)
+        location = geolocator.geocode(address_text, timeout=10)
+        if location:
+            coords = (location.latitude, location.longitude)
+            _GEOCODE_CACHE[cache_key] = coords
+            print(f"[Geocode] Sucesso: '{address_text}' -> {coords}")
+            return coords
+        else:
+            print(f"[Geocode] Falha: Endereço não encontrado: '{address_text}'")
+            return None
+    except Exception as e:
+        print(f"[Geocode] Erro na API do Nominatim: {e}")
+        return None
 
 async def get_coordinates_for_address(address: str) -> Tuple[float, float]:
     """
@@ -52,6 +82,34 @@ def calculate_euclidean_distance_matrix(coords: List[Tuple[float, float]]) -> Li
         matrix.append(row)
     return matrix
 
+async def get_osrm_route(coordinates: List[Tuple[float, float]]) -> Dict[str, Any]:
+    """
+    Calls public OSRM API to get the route geometry and steps between points.
+    coordinates format: [(lat, lon), (lat, lon), ...]
+    """
+    if not coordinates or len(coordinates) < 2:
+        return {}
+
+    # OSRM expects coordinates as {longitude},{latitude}
+    coords_str = ";".join([f"{lon},{lat}" for lat, lon in coordinates])
+    url = f"http://router.project-osrm.org/route/v1/driving/{coords_str}?steps=true&geometries=geojson&overview=full"
+    
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get("code") == "Ok":
+                routes = data.get("routes", [])
+                if routes:
+                    return routes[0]
+            else:
+                print(f"[Routing] OSRM Route API returned non-Ok code: {data.get('code')}")
+    except Exception as e:
+        print(f"[Routing] OSRM Route API call failed: {e}")
+        
+    return {}
 async def get_osrm_distance_matrix(coordinates: List[Tuple[float, float]]) -> Tuple[List[List[float]], List[List[float]]]:
     """
     Calls public OSRM API to get real driving distances and durations.
@@ -74,7 +132,7 @@ async def get_osrm_distance_matrix(coordinates: List[Tuple[float, float]]) -> Tu
             if data.get("code") == "Ok":
                 return data.get("distances", []), data.get("durations", [])
             else:
-                print(f"[Routing] OSRM API returned non-Ok code: {data.get('code')}")
+                print(f"[Routing] OSRM Matrix API returned non-Ok code: {data.get('code')}")
     except Exception as e:
         print(f"[Routing] OSRM API call failed: {e}")
         
@@ -159,8 +217,19 @@ async def calculate_route(addresses: List[str]) -> Dict[str, Any]:
     # 1. Geocode
     coordinates = []
     for addr in addresses:
-        coords = await get_coordinates_for_address(addr)
-        coordinates.append(coords)
+        # Pega a lat/lon do OpenStreetMap
+        coords = get_coordinates_from_address(addr)
+        if coords:
+            coordinates.append(coords)
+        else:
+            print(f"[Routing] Aviso: Não foi possível geocodificar o endereço: {addr}. Usando fallback no meio do mar.")
+            coordinates.append((0.0, 0.0)) # Fallback extremo para não quebrar a matriz, embora vá gerar uma rota bizarra.
+            
+    # Remove as coordenadas zeradas (que falharam no geocode) para não quebrar a lógica real
+    # Mas como as orders estão atreladas aos índices, precisamos manter o índice batendo.
+    # Se falhar o CD, quebra tudo.
+    if coordinates[0] == (0.0, 0.0):
+        return {"error": "Falha crítica: Não foi possível geocodificar o endereço do Centro de Distribuição (Ponto Zero). Verifique o endereço."}
         
     # 2. Get Matrices
     dist_matrix, dur_matrix = await get_osrm_distance_matrix(coordinates)
@@ -180,6 +249,29 @@ async def calculate_route(addresses: List[str]) -> Dict[str, Any]:
     total_distance_meters = 0.0
     total_duration_seconds = 0.0
     
+    # Get Route Geometry and Steps using the optimized sequence
+    ordered_coordinates = [coordinates[i] for i in sequence]
+    route_details = await get_osrm_route(ordered_coordinates)
+    
+    # Extrai os steps se disponíveis (em inglês por padrão no OSRM público)
+    steps = []
+    geometry = {}
+    if route_details and "legs" in route_details and len(route_details["legs"]) > 0:
+        geometry = route_details.get("geometry", {})
+        for leg in route_details["legs"]:
+            for step in leg.get("steps", []):
+                instruction = step.get("maneuver", {}).get("instruction", "")
+                if not instruction: # Se não vier formatado, tenta montar um fallback
+                    type_m = step.get("maneuver", {}).get("type", "")
+                    modifier_m = step.get("maneuver", {}).get("modifier", "")
+                    name_m = step.get("name", "")
+                    instruction = f"{type_m} {modifier_m} on {name_m}".strip()
+                
+                steps.append({
+                    "instruction": instruction,
+                    "distance_meters": step.get("distance", 0.0)
+                })
+    
     # sequence includes returning to depot, if you don't want return trip, iterate until len-1
     for i in range(len(sequence) - 1):
         from_node = sequence[i]
@@ -190,5 +282,7 @@ async def calculate_route(addresses: List[str]) -> Dict[str, Any]:
     return {
         "sequence": sequence,
         "total_distance_km": round(total_distance_meters / 1000.0, 2),
-        "total_eta_minutes": round(total_duration_seconds / 60.0, 2)
+        "total_eta_minutes": round(total_duration_seconds / 60.0, 2),
+        "geometry": geometry,
+        "steps": steps
     }
