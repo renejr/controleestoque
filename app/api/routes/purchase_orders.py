@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_, cast, String
 from sqlalchemy.orm import selectinload
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from app.core.deps import get_db, get_tenant_id
 from app.models.purchase_order import PurchaseOrder
 from app.models.purchase_order_item import PurchaseOrderItem
 from app.models.product import Product
+from app.models.supplier import Supplier
 from app.models.transaction import InventoryTransaction
 from app.schemas.purchase_order import PurchaseOrderCreate, PurchaseOrderResponse, PurchaseOrderUpdate
 from app.services.audit_service import log_audit_event
@@ -55,7 +56,9 @@ async def create_purchase_order(
 @router.get("/", response_model=List[PurchaseOrderResponse])
 async def list_purchase_orders(
     skip: int = 0,
-    limit: int = 20,
+    limit: int = 50,
+    search: Optional[str] = Query(None, description="Busca por número da ordem (ID) ou nome do fornecedor"),
+    status: Optional[str] = Query(None, description="Filtra por status da ordem"),
     tenant_id: UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db)
 ):
@@ -65,11 +68,24 @@ async def list_purchase_orders(
     query = (
         select(PurchaseOrder)
         .options(selectinload(PurchaseOrder.items))
+        .join(Supplier, PurchaseOrder.supplier_id == Supplier.id)
         .where(PurchaseOrder.tenant_id == tenant_id)
-        .order_by(PurchaseOrder.order_date.desc())
-        .offset(skip)
-        .limit(limit)
     )
+
+    if search:
+        # Busca no ID da ordem (cast para string) ou no nome do fornecedor
+        query = query.where(
+            or_(
+                cast(PurchaseOrder.id, String).ilike(f"%{search}%"),
+                Supplier.name.ilike(f"%{search}%")
+            )
+        )
+
+    if status and status.upper() != "TODOS":
+        query = query.where(PurchaseOrder.status == status.upper())
+
+    query = query.order_by(PurchaseOrder.order_date.desc()).offset(skip).limit(limit)
+
     result = await db.execute(query)
     return result.scalars().all()
 

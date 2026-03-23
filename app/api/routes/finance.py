@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text, Date, cast
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import httpx
 
 from app.core.deps import get_db, get_tenant_id, get_current_user
+from app.core.config import settings
 from app.models.transaction import InventoryTransaction
 from app.models.tenant_setting import TenantSetting
 from app.models.product import Product
@@ -17,6 +18,8 @@ router = APIRouter()
 
 @router.get("/summary", response_model=FinanceSummary)
 async def get_finance_summary(
+    start_date: date = Query(None, description="Data inicial para o gráfico diário"),
+    end_date: date = Query(None, description="Data final para o gráfico diário"),
     tenant_id: UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -30,11 +33,12 @@ async def get_finance_summary(
         )
 
     """
-    Retorna um resumo financeiro baseado nas transações de SAÍDA (OUT) dos últimos 30 dias.
+    Retorna um resumo financeiro baseado nas transações de SAÍDA (OUT) dos últimos 30 dias (totais)
+    e um agrupamento diário customizável para o gráfico.
     """
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
     
-    # 1. Calcular Totais Globais (Receita, Custo e Lucro)
+    # 1. Calcular Totais Globais (Receita, Custo e Lucro) - Mantemos 30 dias para os cards de KPI
     query_totals = select(
         func.sum(InventoryTransaction.quantity * InventoryTransaction.unit_price).label('total_revenue'),
         func.sum(InventoryTransaction.quantity * InventoryTransaction.unit_cost).label('total_cost')
@@ -51,8 +55,16 @@ async def get_finance_summary(
     realized_cost = float(totals_row.total_cost or 0.0)
     net_profit = realized_revenue - realized_cost
 
-    # 2. Calcular Agrupamento Diário (Últimos 7 dias)
-    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    # 2. Calcular Agrupamento Diário (Range customizado)
+    # Se não informar datas, default é últimos 7 dias até hoje
+    if not end_date:
+        end_date = datetime.utcnow().date()
+    if not start_date:
+        start_date = end_date - timedelta(days=7)
+        
+    # Converter para datetime para comparação correta
+    start_datetime = datetime.combine(start_date, datetime.min.time())
+    end_datetime = datetime.combine(end_date, datetime.max.time())
     
     # Usando cast(column, Date) nativo do SQLAlchemy
     query_daily = select(
@@ -62,7 +74,8 @@ async def get_finance_summary(
     ).where(
         InventoryTransaction.tenant_id == tenant_id,
         InventoryTransaction.type == 'OUT',
-        InventoryTransaction.date >= seven_days_ago
+        InventoryTransaction.date >= start_datetime,
+        InventoryTransaction.date <= end_datetime
     ).group_by(
         cast(InventoryTransaction.date, Date)
     ).order_by(
@@ -154,9 +167,10 @@ async def get_finance_insights(
 
     # 4. Chamar o Ollama Local
     try:
+        from app.core.config import settings as app_settings
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:11434/api/generate",
+                f"{app_settings.OLLAMA_URL}/api/generate",
                 json={
                     "model": "llama3.2:1b",
                     "system": system_prompt,

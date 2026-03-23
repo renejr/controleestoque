@@ -1,5 +1,6 @@
 import httpx
 import json
+from app.core.config import settings
 
 async def generate_inventory_insights(dashboard_data: dict) -> str:
     """
@@ -64,7 +65,7 @@ async def generate_inventory_insights(dashboard_data: dict) -> str:
         # Timeout definido para 180 segundos conforme solicitado
         async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(
-                "http://localhost:11434/api/generate",
+                f"{settings.OLLAMA_URL}/api/generate",
                 json={
                     "model": "llama3.2:1b",
                     "prompt": prompt,
@@ -109,7 +110,7 @@ async def get_embedding(text: str) -> list[float]:
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                "http://localhost:11434/api/embeddings",
+                f"{settings.OLLAMA_URL}/api/embeddings",
                 json={
                     "model": "nomic-embed-text",
                     "prompt": text
@@ -153,7 +154,7 @@ async def generate_support_answer(question: str, context_text: str) -> str:
         
         async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(
-                "http://localhost:11434/api/generate",
+                f"{settings.OLLAMA_URL}/api/generate",
                 json={
                     "model": "llama3.2:1b",
                     "prompt": prompt,
@@ -227,7 +228,7 @@ async def generate_restock_advice(critical_products: list) -> dict:
         
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
-                "http://localhost:11434/api/generate",
+                f"{settings.OLLAMA_URL}/api/generate",
                 json={
                     "model": "llama3.2:1b",
                     "prompt": prompt,

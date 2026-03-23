@@ -10,6 +10,33 @@ from app.schemas.tenant_setting import TenantSettingResponse, TenantSettingUpdat
 
 router = APIRouter()
 
+@router.get("/public", response_model=TenantSettingResponse)
+async def get_public_tenant_settings(db: AsyncSession = Depends(get_db)):
+    """
+    Retorna as configurações do primeiro tenant para a tela de login pública.
+    Útil para white-label onde a instância tem um tenant principal.
+    """
+    query = select(TenantSetting).limit(1)
+    result = await db.execute(query)
+    settings = result.scalars().first()
+    
+    if not settings:
+        # Se não houver config, tenta buscar o primeiro tenant e criar
+        from app.models.tenant import Tenant
+        t_query = select(Tenant).limit(1)
+        t_result = await db.execute(t_query)
+        tenant = t_result.scalars().first()
+        if tenant:
+            settings = TenantSetting(tenant_id=tenant.id, company_name=tenant.name)
+            db.add(settings)
+            await db.commit()
+            await db.refresh(settings)
+            return settings
+            
+        raise HTTPException(status_code=404, detail="Configurações públicas não encontradas")
+        
+    return settings
+
 @router.get("/", response_model=TenantSettingResponse)
 async def get_tenant_settings(
     tenant_id: UUID = Depends(get_tenant_id),
