@@ -180,8 +180,7 @@ async def update_purchase_order(
                     type="IN",
                     quantity=int(item.quantity), # Estoque geralmente é int na nossa regra atual
                     unit_cost=item.unit_price,
-                    unit_price=product.price, # Mantém o preço de venda atual do produto
-                    notes=f"Recebimento da Ordem de Compra {order.id} no CD {order.cd_id}"
+                    unit_price=product.price # Mantém o preço de venda atual do produto
                 )
                 db.add(transaction)
                 
@@ -198,7 +197,7 @@ async def update_purchase_order(
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail="Erro interno ao processar ordem de compra e estoque.")
+        raise HTTPException(status_code=500, detail=f"Erro interno ao processar ordem de compra e estoque: {str(e)}")
 
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_purchase_order(

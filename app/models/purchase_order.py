@@ -14,7 +14,7 @@ class PurchaseOrder(Base):
     supplier_id = Column(UUID(as_uuid=True), ForeignKey("suppliers.id", ondelete="RESTRICT"), nullable=False)
     
     order_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    status = Column(String(20), nullable=False, default="DRAFT") # DRAFT, PENDING, RECEIVED, CANCELLED
+    status = Column(String(20), nullable=False, default="DRAFT") # DRAFT, PENDING, RECEIVED, COMPLETED, CANCELLED
     total_amount = Column(Numeric(10, 2), nullable=False, default=0.00)
     notes = Column(Text, nullable=True)
     
