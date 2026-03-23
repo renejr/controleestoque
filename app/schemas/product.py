@@ -20,7 +20,7 @@ class ProductBase(BaseModel):
     ncm: Optional[str] = Field(None, max_length=8)
     cfop: Optional[str] = Field(None, max_length=4)
     cest: Optional[str] = Field(None, max_length=7)
-    origin: Optional[int] = Field(0, ge=0)
+    origin: Optional[str] = Field("0", max_length=1)
     embedding: Optional[List[float]] = Field(None, max_length=384, min_length=384)
     cd_id: Optional[UUID] = None
 
@@ -43,7 +43,7 @@ class ProductUpdate(BaseModel):
     ncm: Optional[str] = Field(None, max_length=8)
     cfop: Optional[str] = Field(None, max_length=4)
     cest: Optional[str] = Field(None, max_length=7)
-    origin: Optional[int] = Field(None, ge=0)
+    origin: Optional[str] = Field("0", max_length=1)
     embedding: Optional[List[float]] = Field(None, max_length=384, min_length=384)
     cd_id: Optional[UUID] = None
     version: Optional[int] = None

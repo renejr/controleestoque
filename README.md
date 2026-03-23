@@ -17,9 +17,10 @@ Este projeto é dividido em um poderoso **Backend em Python (FastAPI)** e um apl
 - 🗺️ **Roteirização Otimizada (OSRM + OR-Tools):** Cálculo da rota de entrega mais rápida utilizando dados reais de ruas e trânsito (OSRM) resolvidos via Google OR-Tools. Exibição interativa no app utilizando **OpenStreetMap** 100% gratuito (sem API Keys).
 - 🏛️ **Configurações Fiscais e Integrações:** Gestão de Razão Social, CNPJ, Inscrição Estadual, Certificado Digital. Webhooks nativos para provisionamento de empresas via gateways de pagamento externos.
 - 🕵️ **Caixa Preta (Auditoria):** Sistema de logs invisível que rastreia alterações críticas (INSERT, UPDATE, DELETE) em tempo real, permitindo aos administradores inspecionarem o "Antes e Depois" de cada registro através de um painel de visualização de JSON. Inclui rotas globais para Super Admins do sistema.
-- 🤖 **IA Dupla e Chatbot de Suporte (RAG):** Oráculos alimentados por LLM local (Ollama / Llama 3.2). O CFO gera relatórios gerenciais, o CSO monta o carrinho de compras automaticamente para reposição, e o **Agente de Suporte** responde às dúvidas dos usuários em tempo real baseado no manual do sistema, reduzindo a carga do atendimento humano.
+- 🤖 **IA Dupla e Chatbot de Suporte (RAG):** Oráculos alimentados por LLM local (Ollama / Llama 3.2). O CFO gera relatórios gerenciais (com tom de voz dinâmico parametrizável por empresa), o CSO monta o carrinho de compras automaticamente para reposição, e o **Agente de Suporte** responde às dúvidas dos usuários em tempo real baseado no manual do sistema, reduzindo a carga do atendimento humano.
 - 🧪 **Segurança e Estabilidade:** Suíte de Testes Automatizados com `pytest` e transações de banco de dados isoladas para garantir que o motor financeiro e logístico não quebrem em produção.
-- 🔍 **Busca Semântica:** Motor de busca vetorial avançado utilizando `pgvector` para encontrar produtos até por sinônimos ou descrições abstratas.
+- 🎨 **Identidade Visual Dinâmica:** Configuração White-Label por locatário (Tenant). A logo e o nome da empresa são injetados automaticamente na interface e em todos os relatórios PDF gerados (Romaneios, Ordens de Compra).
+- 🌐 **Suporte Offline-First (Multiplataforma):** Banco de dados local robusto integrado. Funciona no Android/iOS via `sqflite` nativo e possui suporte total na Web e no Desktop através de compilação FFI (WASM/Workers) e persistência via IndexedDB.
 
 ---
 
