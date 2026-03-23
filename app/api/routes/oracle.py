@@ -1,20 +1,82 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from uuid import UUID
 
-from app.core.deps import get_db, get_tenant_id
+from app.core.deps import get_db, get_tenant_id, get_current_user
 from app.models.product import Product
+from app.models.user import User
 from app.models.purchase_order import PurchaseOrder
 from app.models.purchase_order_item import PurchaseOrderItem
-from app.schemas.oracle import OracleRestockResponse
-from app.services.llm_service import generate_restock_advice
+from app.schemas.oracle import OracleRestockResponse, OracleInsightResponse, OracleChatRequest, OracleChatResponse
+from app.services.llm_service import generate_restock_advice, generate_cso_chat_answer
 
 router = APIRouter()
+
+@router.get("/insights", response_model=OracleInsightResponse)
+async def get_oracle_insights(
+    tenant_id: UUID = Depends(get_tenant_id),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Retorna métricas rápidas do banco de dados para popular os cards do CSO.
+    """
+    # Total de produtos
+    query_total = select(func.count(Product.id)).where(Product.tenant_id == tenant_id)
+    total_result = await db.execute(query_total)
+    total_products = total_result.scalar_one_or_none() or 0
+
+    # Produtos com estoque baixo
+    query_low = select(func.count(Product.id)).where(
+        Product.tenant_id == tenant_id,
+        Product.current_stock <= Product.min_stock
+    )
+    low_result = await db.execute(query_low)
+    low_stock_count = low_result.scalar_one_or_none() or 0
+
+    healthy = low_stock_count == 0
+
+    return OracleInsightResponse(
+        low_stock_count=low_stock_count,
+        total_products=total_products,
+        healthy=healthy
+    )
+
+@router.post("/chat", response_model=OracleChatResponse)
+async def chat_with_cso(
+    request: OracleChatRequest,
+    tenant_id: UUID = Depends(get_tenant_id),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Recebe uma pergunta do usuário, busca o contexto atual do estoque 
+    e envia para o LLM responder.
+    """
+    # 1. Monta um resumo do estoque para servir de contexto
+    query = select(Product).where(Product.tenant_id == tenant_id).limit(50) # Limitamos a 50 para não estourar o token limit do LLM
+    result = await db.execute(query)
+    products = result.scalars().all()
+    
+    if not products:
+        context_str = "O estoque está completamente vazio. Não há produtos cadastrados."
+    else:
+        context_lines = []
+        for p in products:
+            status = "CRÍTICO" if p.current_stock <= p.min_stock else "OK"
+            context_lines.append(f"- {p.name} (SKU: {p.sku}): Estoque Atual: {p.current_stock} | Mínimo: {p.min_stock} | Status: {status} | Custo: R${p.cost_price}")
+        context_str = "\n".join(context_lines)
+
+    # 2. Envia para o Ollama
+    answer = await generate_cso_chat_answer(request.query, context_str)
+    
+    return OracleChatResponse(answer=answer)
 
 @router.get("/restock-advice", response_model=OracleRestockResponse)
 async def get_restock_advice(
     tenant_id: UUID = Depends(get_tenant_id),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """

@@ -182,6 +182,51 @@ async def generate_support_answer(question: str, context_text: str) -> str:
     except Exception as e:
         return "Ocorreu um erro interno ao contatar o suporte automatizado."
 
+async def generate_cso_chat_answer(query: str, inventory_context: str) -> str:
+    """
+    Usa o Ollama para atuar como o Consultor de Operações (CSO) respondendo perguntas
+    dinâmicas baseadas no contexto de estoque fornecido.
+    """
+    system_prompt = """
+    Você é o Consultor de Operações (CSO) do sistema de Gestão de Estoque.
+    Você deve responder de forma clara, executiva e prestativa à pergunta do usuário.
+    Baseie sua resposta EXCLUSIVAMENTE nos dados de estoque fornecidos abaixo.
+    Se a pergunta não tiver relação com o estoque ou operações, recuse-se educadamente a responder.
+    Responda em Português do Brasil usando Markdown para facilitar a leitura.
+    """
+
+    prompt = f"{system_prompt}\n\n--- DADOS ATUAIS DO ESTOQUE ---\n{inventory_context}\n\n--- PERGUNTA DO USUÁRIO ---\n{query}"
+
+    try:
+        print(f"--- [LLM Oracle] Iniciando requisição de Chat para o Ollama ---")
+        
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            response = await client.post(
+                f"{settings.OLLAMA_URL}/api/generate",
+                json={
+                    "model": "llama3.2:1b",
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.2, # Leve criatividade, mas focado nos dados
+                        "num_predict": 400
+                    }
+                }
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            answer = result.get("response", "").strip()
+            
+            return answer if answer else "Desculpe, não consegui formular uma resposta neste momento."
+                
+    except httpx.ConnectError:
+        return "O serviço de IA (Ollama) está offline no momento."
+    except httpx.ReadTimeout:
+        return "A IA demorou muito para responder. Tente novamente."
+    except Exception as e:
+        return f"Ocorreu um erro interno no oráculo: {str(e)}"
+
 async def generate_restock_advice(critical_products: list) -> dict:
     """
     Pede ao Ollama para gerar um plano de reposição estruturado em JSON

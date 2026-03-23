@@ -17,7 +17,7 @@ Este projeto é dividido em um poderoso **Backend em Python (FastAPI)** e um apl
 - 💬 **Chat Corporativo em Tempo Real:** Comunicação instantânea via WebSockets entre os membros da equipe de cada empresa, com notificações, isolamento estrito, proteção de Handshake segura contra falhas de JWT e mecanismo de *Heartbeat* (Ping/Pong) para manter conexões ativas e evitar desconexões silenciosas.
 - 🏛️ **Configurações Fiscais e Integrações:** Gestão de Razão Social, CNPJ, Inscrição Estadual, Certificado Digital. Webhooks nativos para provisionamento de empresas via gateways de pagamento externos.
 - 🕵️ **Caixa Preta (Auditoria):** Sistema de logs invisível que rastreia alterações críticas (INSERT, UPDATE, DELETE) em tempo real, permitindo aos administradores inspecionarem o "Antes e Depois" de cada registro através de um painel de visualização de JSON. Inclui rotas globais para Super Admins do sistema.
-- 🤖 **IA Dupla e Chatbot de Suporte (RAG):** Oráculos alimentados por LLM local (Ollama / Llama 3.2). O CFO gera relatórios gerenciais (com tom de voz dinâmico parametrizável por empresa), o CSO monta o carrinho de compras automaticamente para reposição, e o **Agente de Suporte** responde às dúvidas dos usuários em tempo real baseado no manual do sistema, reduzindo a carga do atendimento humano.
+- 🤖 **IA Dupla e Chatbot de Suporte (RAG):** Oráculos alimentados por LLM local (Ollama / Llama 3.2). O CFO gera relatórios gerenciais (com tom de voz dinâmico parametrizável por empresa), o CSO monta o carrinho de compras automaticamente para reposição e **responde dúvidas interativas com contexto de estoque**, e o **Agente de Suporte** responde às dúvidas dos usuários em tempo real baseado no manual do sistema, reduzindo a carga do atendimento humano.
 - 🧪 **Segurança e Estabilidade:** Suíte de Testes Automatizados com `pytest` e transações de banco de dados isoladas para garantir que o motor financeiro e logístico não quebrem em produção.
 - 🎨 **Identidade Visual Dinâmica:** Configuração White-Label por locatário (Tenant). A logo e o nome da empresa são injetados automaticamente na interface e em todos os relatórios PDF gerados (Romaneios, Ordens de Compra).
 - 🌐 **Suporte Offline-First (Multiplataforma):** Banco de dados local robusto integrado. Funciona no Android/iOS via `sqflite` nativo e possui suporte total na Web e no Desktop através de compilação FFI (WASM/Workers) e persistência via IndexedDB.
@@ -43,7 +43,7 @@ Este projeto é dividido em um poderoso **Backend em Python (FastAPI)** e um apl
 
 ---
 
-## ⚙️ Como Rodar o Projeto Localmente
+## ⚙️ Como Rodar e Expor o Projeto Localmente
 
 ### 1. Pré-requisitos
 - [Python 3.12+](https://www.python.org/downloads/)
@@ -104,12 +104,16 @@ Para que a aba "Oráculo de IA" funcione, você precisa ter o Ollama rodando loc
    flutter pub get
    ```
 
-3. Verifique a URL da API. No arquivo `lib/core/constants.dart`, certifique-se de que `apiBaseUrl` aponta para o seu backend local (ex: `http://localhost:8000`).
+3. Verifique a URL da API. No arquivo `lib/core/constants.dart`, certifique-se de que `apiBaseUrl` aponta para o seu backend local (ex: `http://localhost:8000`) ou para a URL do seu túnel do Cloudflare.
 
 4. Rode o aplicativo:
    ```bash
-   flutter run
+   flutter run -d web-server --web-port 5000
    ```
+
+### 5. Expondo na Internet (Cloudflare Tunnels)
+Para acessar o sistema pelo seu celular ou enviar um link para teste global sem abrir portas no roteador, utilize o Cloudflare. 
+Consulte o guia completo no arquivo [MANUAL_EXPOSICAO_CLOUDFLARE.md](./MANUAL_EXPOSICAO_CLOUDFLARE.md).
 
 ---
 
