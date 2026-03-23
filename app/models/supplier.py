@@ -14,6 +14,7 @@ class Supplier(Base):
     cnpj = Column(String(20), nullable=True)
     email = Column(String(100), nullable=True)
     phone = Column(String(20), nullable=True)
+    contact_name = Column(String(100), nullable=True)
     address = Column(Text, nullable=True)
     website = Column(String(100), nullable=True)
 

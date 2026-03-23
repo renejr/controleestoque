@@ -7,6 +7,7 @@ class SupplierBase(BaseModel):
     cnpj: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    contact_name: Optional[str] = None
     address: Optional[str] = None
     website: Optional[str] = None
 
@@ -18,6 +19,7 @@ class SupplierUpdate(BaseModel):
     cnpj: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    contact_name: Optional[str] = None
     address: Optional[str] = None
     website: Optional[str] = None
 
