@@ -92,7 +92,7 @@ async def get_osrm_route(coordinates: List[Tuple[float, float]]) -> Dict[str, An
 
     # OSRM expects coordinates as {longitude},{latitude}
     coords_str = ";".join([f"{lon},{lat}" for lat, lon in coordinates])
-    url = f"http://router.project-osrm.org/route/v1/driving/{coords_str}?steps=true&geometries=geojson&overview=full"
+    url = f"http://router.project-osrm.org/route/v1/driving/{coords_str}?steps=true&geometries=geojson&overview=full&language=pt"
     
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -103,7 +103,36 @@ async def get_osrm_route(coordinates: List[Tuple[float, float]]) -> Dict[str, An
             if data.get("code") == "Ok":
                 routes = data.get("routes", [])
                 if routes:
-                    return routes[0]
+                    route = routes[0]
+                    # Translate steps if OSRM ignores language=pt
+                    translation_dict = {
+                        "turn right": "Vire à direita",
+                        "turn left": "Vire à esquerda",
+                        "turn slight right": "Vire levemente à direita",
+                        "turn slight left": "Vire levemente à esquerda",
+                        "turn sharp right": "Vire acentuadamente à direita",
+                        "turn sharp left": "Vire acentuadamente à esquerda",
+                        "depart": "Siga",
+                        "arrive": "Chegada",
+                        "continue": "Continue",
+                        "make a u-turn": "Faça o retorno",
+                        "keep left": "Mantenha-se à esquerda",
+                        "keep right": "Mantenha-se à direita",
+                        "roundabout": "Na rotatória",
+                        "destination": "Destino"
+                    }
+                    
+                    if "legs" in route:
+                        for leg in route["legs"]:
+                            if "steps" in leg:
+                                for step in leg["steps"]:
+                                    if "maneuver" in step and "instruction" in step["maneuver"]:
+                                        instruction = step["maneuver"]["instruction"].lower()
+                                        for en_term, pt_term in translation_dict.items():
+                                            if en_term in instruction:
+                                                step["maneuver"]["instruction"] = step["maneuver"]["instruction"].lower().replace(en_term, pt_term).capitalize()
+                    
+                    return route
             else:
                 print(f"[Routing] OSRM Route API returned non-Ok code: {data.get('code')}")
     except Exception as e:
