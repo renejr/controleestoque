@@ -173,15 +173,21 @@ async def optimize_fleet_route(
         if "error" in routing_result:
             raise HTTPException(status_code=400, detail=routing_result["error"])
             
-        # Mapeia a sequência otimizada (ignorando o índice 0 que é o depósito)
+        # Mapeia a sequência otimizada (ignorando o índice 0 que é o depósito) e inclui coordenadas
         optimized_sequence = []
-        for seq_index in routing_result["sequence"]:
+        sequence = routing_result["sequence"]
+        sequence_coords = routing_result.get("sequence_coordinates", [])
+        for i, seq_index in enumerate(sequence):
             if seq_index > 0 and seq_index <= len(sales_orders):
-                # Subtrai 1 pois o índice 0 é o depósito, e a lista sales_orders começa em 0
                 order_index = seq_index - 1
+                lat, lng = (0.0, 0.0)
+                if i < len(sequence_coords):
+                    lat, lng = sequence_coords[i]
                 optimized_sequence.append({
                     "order_id": str(sales_orders[order_index].id),
-                    "optimized_position": len(optimized_sequence) + 1
+                    "optimized_position": len(optimized_sequence) + 1,
+                    "lat": lat,
+                    "lng": lng
                 })
                 
         return {

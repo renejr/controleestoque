@@ -92,7 +92,7 @@ async def get_osrm_route(coordinates: List[Tuple[float, float]]) -> Dict[str, An
 
     # OSRM expects coordinates as {longitude},{latitude}
     coords_str = ";".join([f"{lon},{lat}" for lat, lon in coordinates])
-    url = f"http://router.project-osrm.org/route/v1/driving/{coords_str}?steps=true&geometries=geojson&overview=full&language=pt"
+    url = f"http://router.project-osrm.org/route/v1/driving/{coords_str}?steps=true&geometries=geojson&overview=full"
     
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -103,36 +103,7 @@ async def get_osrm_route(coordinates: List[Tuple[float, float]]) -> Dict[str, An
             if data.get("code") == "Ok":
                 routes = data.get("routes", [])
                 if routes:
-                    route = routes[0]
-                    # Translate steps if OSRM ignores language=pt
-                    translation_dict = {
-                        "turn right": "Vire à direita",
-                        "turn left": "Vire à esquerda",
-                        "turn slight right": "Vire levemente à direita",
-                        "turn slight left": "Vire levemente à esquerda",
-                        "turn sharp right": "Vire acentuadamente à direita",
-                        "turn sharp left": "Vire acentuadamente à esquerda",
-                        "depart": "Siga",
-                        "arrive": "Chegada",
-                        "continue": "Continue",
-                        "make a u-turn": "Faça o retorno",
-                        "keep left": "Mantenha-se à esquerda",
-                        "keep right": "Mantenha-se à direita",
-                        "roundabout": "Na rotatória",
-                        "destination": "Destino"
-                    }
-                    
-                    if "legs" in route:
-                        for leg in route["legs"]:
-                            if "steps" in leg:
-                                for step in leg["steps"]:
-                                    if "maneuver" in step and "instruction" in step["maneuver"]:
-                                        instruction = step["maneuver"]["instruction"].lower()
-                                        for en_term, pt_term in translation_dict.items():
-                                            if en_term in instruction:
-                                                step["maneuver"]["instruction"] = step["maneuver"]["instruction"].lower().replace(en_term, pt_term).capitalize()
-                    
-                    return route
+                    return routes[0]
             else:
                 print(f"[Routing] OSRM Route API returned non-Ok code: {data.get('code')}")
     except Exception as e:
@@ -289,12 +260,36 @@ async def calculate_route(addresses: List[str]) -> Dict[str, Any]:
         geometry = route_details.get("geometry", {})
         for leg in route_details["legs"]:
             for step in leg.get("steps", []):
-                instruction = step.get("maneuver", {}).get("instruction", "")
-                if not instruction: # Se não vier formatado, tenta montar um fallback
-                    type_m = step.get("maneuver", {}).get("type", "")
-                    modifier_m = step.get("maneuver", {}).get("modifier", "")
-                    name_m = step.get("name", "")
-                    instruction = f"{type_m} {modifier_m} on {name_m}".strip()
+                type_m = step.get("maneuver", {}).get("type", "")
+                modifier_m = step.get("maneuver", {}).get("modifier", "")
+                name_m = step.get("name", "")
+                exit_m = step.get("maneuver", {}).get("exit", None)
+                
+                instruction = ""
+                if type_m == "turn":
+                    if modifier_m == "right":
+                        instruction = f"Vire à direita {('na ' + name_m) if name_m else ''}".strip()
+                    elif modifier_m == "left":
+                        instruction = f"Vire à esquerda {('na ' + name_m) if name_m else ''}".strip()
+                    elif modifier_m == "slight right":
+                        instruction = f"Vire levemente à direita {('na ' + name_m) if name_m else ''}".strip()
+                    elif modifier_m == "slight left":
+                        instruction = f"Vire levemente à esquerda {('na ' + name_m) if name_m else ''}".strip()
+                    else:
+                        instruction = f"Vire {('em ' + name_m) if name_m else ''}".strip()
+                elif type_m == "continue":
+                    instruction = f"Continue {('na ' + name_m) if name_m else ''}".strip()
+                elif type_m == "depart":
+                    instruction = "Siga"
+                elif type_m == "arrive":
+                    instruction = "Chegada ao destino"
+                elif type_m == "roundabout":
+                    if exit_m:
+                        instruction = f"Na rotatória, pegue a saída {exit_m} {('para ' + name_m) if name_m else ''}".strip()
+                    else:
+                        instruction = f"Entre na rotatória {('e siga para ' + name_m) if name_m else ''}".strip()
+                else:
+                    instruction = f"Siga {('na ' + name_m) if name_m else ''}".strip()
                 
                 steps.append({
                     "instruction": instruction,
@@ -310,6 +305,7 @@ async def calculate_route(addresses: List[str]) -> Dict[str, Any]:
         
     return {
         "sequence": sequence,
+        "sequence_coordinates": ordered_coordinates,
         "total_distance_km": round(total_distance_meters / 1000.0, 2),
         "total_eta_minutes": round(total_duration_seconds / 60.0, 2),
         "geometry": geometry,
