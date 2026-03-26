@@ -11,6 +11,7 @@ from app.models.vehicle import Vehicle
 from app.models.product import Product
 from app.models.sales_order import SalesOrder
 from app.models.sales_order_item import SalesOrderItem
+from app.models.collection_order import CollectionOrder
 from app.models.distribution_center import DistributionCenter
 from app.models.tenant_setting import TenantSetting
 from app.schemas.fleet import PackOrderRequest
@@ -201,6 +202,127 @@ async def optimize_fleet_route(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao otimizar rota: {str(e)}")
+
+from pydantic import BaseModel
+from typing import List, Optional
+
+class MixedRouteRequest(BaseModel):
+    vehicle_id: UUID
+    sales_orders_ids: List[UUID] = []
+    collection_orders_ids: List[UUID] = []
+
+@router.post("/optimize-mixed-route", status_code=status.HTTP_200_OK)
+async def optimize_mixed_route(
+    request: MixedRouteRequest,
+    tenant_id: UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db)
+):
+    if not request.sales_orders_ids and not request.collection_orders_ids:
+        raise HTTPException(status_code=400, detail="Nenhum pedido de venda ou coleta fornecido.")
+
+    # Busca o veículo e seu CD
+    query_vehicle = select(Vehicle).where(Vehicle.id == request.vehicle_id, Vehicle.tenant_id == tenant_id)
+    result_vehicle = await db.execute(query_vehicle)
+    vehicle = result_vehicle.scalars().first()
+    
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Veículo não encontrado.")
+        
+    ponto_zero = "Praça da Sé, São Paulo, SP, 01001-000, Brazil" # Default fallback
+    if vehicle.cd_id:
+        query_cd = select(DistributionCenter).where(DistributionCenter.id == vehicle.cd_id, DistributionCenter.tenant_id == tenant_id)
+        result_cd = await db.execute(query_cd)
+        cd = result_cd.scalars().first()
+        if cd:
+            ponto_zero = f"{cd.address}, {cd.city}, {cd.state}, {cd.zip_code}"
+
+    addresses = [ponto_zero]
+    stops_info = [] # Store metadata for mapping back the results
+
+    # 1. Process Sales Orders (Deliveries)
+    if request.sales_orders_ids:
+        query_sales = select(SalesOrder).options(selectinload(SalesOrder.customer)).where(
+            SalesOrder.id.in_(request.sales_orders_ids), 
+            SalesOrder.tenant_id == tenant_id
+        )
+        result_sales = await db.execute(query_sales)
+        sales_orders = result_sales.scalars().all()
+        
+        for order in sales_orders:
+            address = None
+            if hasattr(order, 'customer') and order.customer:
+                c = order.customer
+                address = f"{c.street}, {c.number}, {c.city}, {c.state}, {c.zip_code}, Brazil"
+            
+            if not address or address.strip() == ", , , , , Brazil":
+                address = "Praça da Sé, São Paulo, SP, 01001-000, Brazil"
+                
+            addresses.append(address)
+            stops_info.append({
+                "id": str(order.id),
+                "type": "DELIVERY",
+                "name": order.customer.name if order.customer else "Cliente Desconhecido"
+            })
+
+    # 2. Process Collection Orders
+    if request.collection_orders_ids:
+        query_collections = select(CollectionOrder).where(
+            CollectionOrder.id.in_(request.collection_orders_ids),
+            CollectionOrder.tenant_id == tenant_id
+        )
+        result_collections = await db.execute(query_collections)
+        collection_orders = result_collections.scalars().all()
+        
+        for order in collection_orders:
+            address = order.pickup_address
+            if not address or len(address.strip()) < 5:
+                address = "Praça da Sé, São Paulo, SP, 01001-000, Brazil"
+                
+            addresses.append(address)
+            stops_info.append({
+                "id": str(order.id),
+                "type": "COLLECTION",
+                "name": order.sender_name
+            })
+
+    try:
+        # Chama o serviço de roteirização (Geopy -> OSRM -> OR-Tools)
+        routing_result = await calculate_route(addresses)
+        
+        if "error" in routing_result:
+            raise HTTPException(status_code=400, detail=routing_result["error"])
+            
+        optimized_sequence = []
+        sequence = routing_result["sequence"]
+        sequence_coords = routing_result.get("sequence_coordinates", [])
+        
+        for i, seq_index in enumerate(sequence):
+            # seq_index 0 is the depot
+            if seq_index > 0 and seq_index <= len(stops_info):
+                stop_meta = stops_info[seq_index - 1]
+                lat, lng = (0.0, 0.0)
+                if i < len(sequence_coords):
+                    lat, lng = sequence_coords[i]
+                    
+                optimized_sequence.append({
+                    "order_id": stop_meta["id"],
+                    "type": stop_meta["type"],
+                    "name": stop_meta["name"],
+                    "optimized_position": len(optimized_sequence) + 1,
+                    "lat": lat,
+                    "lng": lng
+                })
+                
+        return {
+            "vehicle_id": str(request.vehicle_id),
+            "optimized_orders": optimized_sequence,
+            "total_distance_km": routing_result["total_distance_km"],
+            "total_eta_minutes": routing_result["total_eta_minutes"],
+            "geometry": routing_result.get("geometry", {}),
+            "steps": routing_result.get("steps", [])
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno na roteirização mista: {str(e)}")
 
 @router.post("/manifests/{romaneio_id}/pdf")
 async def download_manifest_pdf(

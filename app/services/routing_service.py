@@ -1,5 +1,6 @@
 import math
 import httpx
+import re
 from typing import List, Tuple, Dict, Any
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
@@ -11,34 +12,52 @@ import time
 _GEOCODE_CACHE: Dict[str, Tuple[float, float]] = {}
 geolocator = Nominatim(user_agent="gestao_estoque_saas_router_v2")
 
-def get_coordinates_from_address(address_text: str) -> Tuple[float, float]:
+async def get_address_from_viacep(address_text: str) -> str:
     """
-    Usa o Nominatim (OpenStreetMap) para buscar a lat/lon de um endereço em texto.
-    Retorna (lat, lon) ou None se não encontrar.
+    Tenta extrair o CEP da string e busca dados oficiais na API do ViaCEP.
+    Retorna a string limpa para o Nominatim ou a string original como fallback.
     """
     if not address_text:
-        return None
-        
-    # Verifica cache
-    cache_key = address_text.lower().strip()
-    if cache_key in _GEOCODE_CACHE:
-        return _GEOCODE_CACHE[cache_key]
-        
+        return address_text
+
+    # Extrai o CEP (formato 00000-000 ou 00000000)
+    cep_match = re.search(r'\b\d{5}-?\d{3}\b', address_text)
+    if not cep_match:
+        return address_text
+
+    cep = cep_match.group(0).replace('-', '')
+    
+    # Extrai o Número (pega a primeira sequência de dígitos que não seja o CEP, geralmente após a vírgula)
+    # Ex: "Rua Ficticia, 123, Bairro..."
+    parts = address_text.split(',')
+    numero = ""
+    if len(parts) > 1:
+        num_match = re.search(r'\d+', parts[1])
+        if num_match:
+            numero = num_match.group(0)
+
     try:
-        # Rate limit do Nominatim (1 req/sec)
-        time.sleep(1)
-        location = geolocator.geocode(address_text, timeout=10)
-        if location:
-            coords = (location.latitude, location.longitude)
-            _GEOCODE_CACHE[cache_key] = coords
-            print(f"[Geocode] Sucesso: '{address_text}' -> {coords}")
-            return coords
-        else:
-            print(f"[Geocode] Falha: Endereço não encontrado: '{address_text}'")
-            return None
+        url = f"https://viacep.com.br/ws/{cep}/json/"
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data.get("erro"):
+                logradouro = data.get("logradouro", "")
+                localidade = data.get("localidade", "")
+                uf = data.get("uf", "")
+                
+                if logradouro and localidade and uf:
+                    # Monta a string perfeita
+                    numero_str = f", {numero}" if numero else ""
+                    clean_address = f"{logradouro}{numero_str}, {localidade}, {uf}, {cep}, Brazil"
+                    print(f"[ViaCEP] Sanitizado: '{address_text}' -> '{clean_address}'")
+                    return clean_address
     except Exception as e:
-        print(f"[Geocode] Erro na API do Nominatim: {e}")
-        return None
+        print(f"[ViaCEP] Falha ao consultar CEP {cep}: {e}")
+        
+    return address_text
 
 async def get_coordinates_for_address(address: str) -> Tuple[float, float]:
     """
@@ -46,19 +65,25 @@ async def get_coordinates_for_address(address: str) -> Tuple[float, float]:
     Uses in-memory cache to save bandwidth.
     Returns (0.0, 0.0) if not found.
     """
-    if address in _GEOCODE_CACHE:
-        return _GEOCODE_CACHE[address]
+    # Enriquecimento via ViaCEP antes do Geocode
+    clean_address = await get_address_from_viacep(address)
+
+    if clean_address in _GEOCODE_CACHE:
+        return _GEOCODE_CACHE[clean_address]
         
     try:
-        # Note: Nominatim is blocking, but we wrap it in a simple way. 
-        # In a high-throughput prod env, use an async geocoder or run in executor.
-        location = geolocator.geocode(address, timeout=10)
+        # Rate limit do Nominatim (1 req/sec)
+        time.sleep(1)
+        location = geolocator.geocode(clean_address, timeout=10)
         if location:
             coords = (location.latitude, location.longitude)
-            _GEOCODE_CACHE[address] = coords
+            _GEOCODE_CACHE[clean_address] = coords
+            print(f"[Geocode] Sucesso: '{clean_address}' -> {coords}")
             return coords
+        else:
+            print(f"[Geocode] Falha: Endereço não encontrado: '{clean_address}'")
     except (GeocoderTimedOut, GeocoderServiceError) as e:
-        print(f"[Routing] Geocode error for '{address}': {e}")
+        print(f"[Routing] Geocode error for '{clean_address}': {e}")
         
     return (0.0, 0.0)
 
@@ -218,8 +243,8 @@ async def calculate_route(addresses: List[str]) -> Dict[str, Any]:
     coordinates = []
     for addr in addresses:
         # Pega a lat/lon do OpenStreetMap
-        coords = get_coordinates_from_address(addr)
-        if coords:
+        coords = await get_coordinates_for_address(addr)
+        if coords and coords != (0.0, 0.0):
             coordinates.append(coords)
         else:
             print(f"[Routing] Aviso: Não foi possível geocodificar o endereço: {addr}. Usando fallback no meio do mar.")
