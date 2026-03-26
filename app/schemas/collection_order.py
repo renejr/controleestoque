@@ -3,6 +3,19 @@ from uuid import UUID
 from datetime import datetime
 from typing import Optional
 
+class CollectionOrderItemBase(BaseModel):
+    product_id: UUID = Field(..., description="ID do produto (SKU)")
+    quantity: int = Field(..., ge=1, description="Quantidade a ser coletada")
+
+class CollectionOrderItemCreate(CollectionOrderItemBase):
+    pass
+
+class CollectionOrderItemResponse(CollectionOrderItemBase):
+    id: UUID
+    collection_order_id: UUID
+
+    model_config = {"from_attributes": True}
+
 class CollectionOrderBase(BaseModel):
     sender_name: str = Field(..., description="Nome do remetente (fornecedor/cliente)")
     
@@ -24,7 +37,7 @@ class CollectionOrderBase(BaseModel):
     status: str = Field("PENDING", description="Status da coleta (PENDING, ROUTED, IN_TRANSIT, COLLECTED, CANCELED)")
 
 class CollectionOrderCreate(CollectionOrderBase):
-    pass
+    items: list[CollectionOrderItemCreate] = Field(default_factory=list, description="Lista de itens (SKUs) a serem coletados")
 
 class CollectionOrderUpdate(BaseModel):
     sender_name: Optional[str] = None
@@ -47,5 +60,6 @@ class CollectionOrderStatusUpdate(BaseModel):
 class CollectionOrderResponse(CollectionOrderBase):
     id: UUID
     tenant_id: UUID
+    items: list[CollectionOrderItemResponse] = []
 
     model_config = {"from_attributes": True}

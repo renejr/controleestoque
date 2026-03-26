@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import List, Dict, Any
 from pydantic import BaseModel
 from uuid import UUID
 
 from app.core.deps import get_db, get_tenant_id
 from app.models.collection_order import CollectionOrder
+from app.models.collection_order_item import CollectionOrderItem
 from app.models.distribution_center import DistributionCenter
 from app.schemas.collection_order import CollectionOrderCreate, CollectionOrderResponse, CollectionOrderUpdate, CollectionOrderStatusUpdate
 from app.services.routing_service import calculate_route
@@ -21,9 +23,9 @@ async def list_collection_orders(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Lista as ordens de coleta do tenant atual.
+    Lista as ordens de coleta do tenant atual com seus itens.
     """
-    query = select(CollectionOrder).where(CollectionOrder.tenant_id == tenant_id).offset(skip).limit(limit)
+    query = select(CollectionOrder).options(selectinload(CollectionOrder.items)).where(CollectionOrder.tenant_id == tenant_id).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -34,16 +36,33 @@ async def create_collection_order(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Cria uma nova ordem de coleta.
+    Cria uma nova ordem de coleta com os itens (SKUs).
     """
+    collection_data = collection_in.model_dump(exclude={"items"})
+    
     new_collection = CollectionOrder(
-        **collection_in.model_dump(),
+        **collection_data,
         tenant_id=tenant_id
     )
     db.add(new_collection)
+    await db.flush() # Para gerar o ID da coleta
+
+    if collection_in.items:
+        for item in collection_in.items:
+            new_item = CollectionOrderItem(
+                collection_order_id=new_collection.id,
+                product_id=item.product_id,
+                quantity=item.quantity,
+                tenant_id=tenant_id
+            )
+            db.add(new_item)
+
     await db.commit()
-    await db.refresh(new_collection)
-    return new_collection
+    
+    # Carrega a coleta com os itens recém criados para retornar no schema
+    query = select(CollectionOrder).options(selectinload(CollectionOrder.items)).where(CollectionOrder.id == new_collection.id)
+    result = await db.execute(query)
+    return result.scalars().first()
 
 class OptimizeCollectionRequest(BaseModel):
     collection_ids: List[UUID]

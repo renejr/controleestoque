@@ -37,3 +37,4 @@ class CollectionOrder(Base):
     # Relacionamentos (opcional para joins)
     distribution_center = relationship("DistributionCenter")
     vehicle = relationship("Vehicle")
+    items = relationship("CollectionOrderItem", back_populates="collection_order", cascade="all, delete-orphan")
