@@ -19,11 +19,12 @@ from app.models.help import HelpArticle, ChatbotLog
 from app.models.distribution_center import DistributionCenter
 from app.models.tenant_setting import TenantSetting
 from app.models.collection_order import CollectionOrder
+from app.models.collection_order_item import CollectionOrderItem
 
 __all__ = [
     "Base", "Tenant", "User", "Product", "InventoryTransaction", 
     "AIInsight", "Supplier", "PurchaseOrder", "PurchaseOrderItem", 
     "AuditLog", "Vehicle", "Customer", "SalesOrder", "SalesOrderItem", "Suggestion",
     "NfeDocument", "ChatMessage", "HelpArticle", "ChatbotLog", "DistributionCenter",
-    "TenantSetting", "CollectionOrder"
+    "TenantSetting", "CollectionOrder", "CollectionOrderItem"
 ]
